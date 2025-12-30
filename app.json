@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Academia App",
+    "slug": "academia-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.academia.app"
+    },
+    "android": {
+      "package": "com.academia.app"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
