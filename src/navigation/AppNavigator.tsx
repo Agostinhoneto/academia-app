@@ -9,6 +9,7 @@ import HomeScreen from '../screens/HomeScreen';
 import WorkoutsScreen from '../screens/WorkoutsScreen';
 import WorkoutActiveScreen from '../screens/WorkoutActiveScreen';
 import PlanScreen from '../screens/PlanScreen';
+import ProgressScreen from '../screens/ProgressScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -34,7 +35,18 @@ function MainTabs() {
           borderTopColor: 'rgba(50,103,68,0.3)',
           elevation: 0,
         },
-      }}>
+      }}
+      initialRouteName="WorkoutActive">
+      <Tab.Screen
+        name="WorkoutActive"
+        component={WorkoutActiveScreen}
+        options={{
+          tabBarLabel: 'Treino Ativo',
+          tabBarIcon: ({color, size}) => (
+            <MaterialIcons name="play-circle-filled" size={size} color={color} />
+          ),
+        }}
+      />
       <Tab.Screen
         name="Home"
         component={HomeScreen}
@@ -66,6 +78,16 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
+        name="Progress"
+        component={ProgressScreen}
+        options={{
+          tabBarLabel: 'Evolução',
+          tabBarIcon: ({color, size}) => (
+            <MaterialIcons name="trending-up" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -85,7 +107,6 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
-        <Stack.Screen name="WorkoutActive" component={WorkoutActiveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

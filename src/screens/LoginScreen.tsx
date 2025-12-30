@@ -22,7 +22,7 @@ export default function LoginScreen({navigation}: any) {
     // Para desenvolvimento: aceita qualquer login
     // Ou use as credenciais: demo@academia.com / 123456
     if (email && password) {
-      navigation.replace('WorkoutActive');
+      navigation.replace('MainTabs');
     } else {
       alert('Por favor, preencha email e senha');
     }
