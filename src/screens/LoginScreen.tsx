@@ -14,14 +14,18 @@ import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 
 export default function LoginScreen({navigation}: any) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('demo@academia.com');
+  const [password, setPassword] = useState('123456');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = () => {
-    // Implementar lógica de login
-    console.log('Login:', email, password);
-    navigation.replace('Home');
+    // Para desenvolvimento: aceita qualquer login
+    // Ou use as credenciais: demo@academia.com / 123456
+    if (email && password) {
+      navigation.replace('WorkoutActive');
+    } else {
+      alert('Por favor, preencha email e senha');
+    }
   };
 
   return (

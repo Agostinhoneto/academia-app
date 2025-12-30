@@ -7,6 +7,8 @@ import {MaterialIcons} from '@expo/vector-icons';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import WorkoutsScreen from '../screens/WorkoutsScreen';
+import WorkoutActiveScreen from '../screens/WorkoutActiveScreen';
+import PlanScreen from '../screens/PlanScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
@@ -20,11 +22,17 @@ function MainTabs() {
         tabBarInactiveTintColor: '#92c9a4',
         headerShown: false,
         tabBarStyle: {
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 65,
           backgroundColor: '#102216',
-          borderTopColor: '#326744',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(50,103,68,0.3)',
+          elevation: 0,
         },
       }}>
       <Tab.Screen
@@ -48,6 +56,16 @@ function MainTabs() {
         }}
       />
       <Tab.Screen
+        name="Plan"
+        component={PlanScreen}
+        options={{
+          tabBarLabel: 'Plano',
+          tabBarIcon: ({color, size}) => (
+            <MaterialIcons name="card-membership" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
@@ -67,6 +85,7 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{headerShown: false}}>
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="MainTabs" component={MainTabs} />
+        <Stack.Screen name="WorkoutActive" component={WorkoutActiveScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

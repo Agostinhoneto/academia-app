@@ -33,14 +33,18 @@ const WORKOUTS = [
   },
 ];
 
-export default function WorkoutsScreen() {
+export default function WorkoutsScreen({navigation}: any) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Meus Treinos</Text>
         
         {WORKOUTS.map((workout) => (
-          <TouchableOpacity key={workout.id} style={styles.workoutCard}>
+          <TouchableOpacity 
+            key={workout.id} 
+            style={styles.workoutCard}
+            onPress={() => navigation.navigate('WorkoutActive')}
+          >
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryText}>{workout.category}</Text>
             </View>
