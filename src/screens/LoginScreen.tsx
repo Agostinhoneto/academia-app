@@ -8,23 +8,39 @@ import {
   ImageBackground,
   ScrollView,
   Pressable,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
+import {useAuth} from '../contexts/AuthContext';
 
 export default function LoginScreen({navigation}: any) {
-  const [email, setEmail] = useState('demo@academia.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    // Para desenvolvimento: aceita qualquer login
-    // Ou use as credenciais: demo@academia.com / 123456
-    if (email && password) {
+  const {login} = useAuth();
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Atenção', 'Por favor, preencha email e senha');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await login({email: email.trim(), password});
       navigation.replace('MainTabs');
-    } else {
-      alert('Por favor, preencha email e senha');
+    } catch (error: any) {
+      Alert.alert(
+        'Erro ao fazer login',
+        error.message || 'Verifique suas credenciais e tente novamente'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 

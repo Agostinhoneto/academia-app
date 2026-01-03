@@ -1,22 +1,59 @@
-import React from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
+import React, {useState, useEffect} from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
+import {useAuth} from '../contexts/AuthContext';
+import {treinoService, Treino} from '../services/treino';
+import {mensalidadeService} from '../services/mensalidade';
 
 export default function HomeScreen({navigation}: any) {
+  const {user, aluno} = useAuth();
+  const [treinos, setTreinos] = useState<Treino[]>([]);
+  const [proximaMensalidade, setProximaMensalidade] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   const currentDate = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
 
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      const [treinosData, mensalidadeData] = await Promise.all([
+        treinoService.getTreinos().catch(() => []),
+        mensalidadeService.getProximaMensalidade().catch(() => null),
+      ]);
+      setTreinos(treinosData);
+      setProximaMensalidade(mensalidadeData);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }
+
+  const primeiroNome = aluno?.nome?.split(' ')[0] || user?.name?.split(' ')[0] || 'Aluno';
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Olá, Carlos 👋</Text>
+          <Text style={styles.greeting}>Olá, {primeiroNome} 👋</Text>
           <Text style={styles.date}>{currentDate}</Text>
         </View>
         <TouchableOpacity style={styles.notificationButton}>
@@ -28,61 +65,96 @@ export default function HomeScreen({navigation}: any) {
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#13ec5b" />
+        }>
         
-        {/* Quick Stats */}
-        <View style={styles.quickStats}>
-          <View style={styles.quickStatItem}>
-            <MaterialIcons name="local-fire-department" size={24} color="#ff9500" />
-            <Text style={styles.quickStatValue}>3</Text>
-            <Text style={styles.quickStatLabel}>Dias Seq.</Text>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#13ec5b" />
+            <Text style={styles.loadingText}>Carregando...</Text>
           </View>
-          <View style={styles.quickStatItem}>
-            <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
-            <Text style={styles.quickStatValue}>45</Text>
-            <Text style={styles.quickStatLabel}>Treinos</Text>
-          </View>
-          <View style={styles.quickStatItem}>
-            <MaterialIcons name="timer" size={24} color="#007AFF" />
-            <Text style={styles.quickStatValue}>18h</Text>
-            <Text style={styles.quickStatLabel}>Total</Text>
-          </View>
-        </View>
+        ) : (
+          <>
+            {/* Quick Stats */}
+            <View style={styles.quickStats}>
+              <View style={styles.quickStatItem}>
+                <MaterialIcons name="local-fire-department" size={24} color="#ff9500" />
+                <Text style={styles.quickStatValue}>-</Text>
+                <Text style={styles.quickStatLabel}>Dias Seq.</Text>
+              </View>
+              <View style={styles.quickStatItem}>
+                <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
+                <Text style={styles.quickStatValue}>{treinos.length}</Text>
+                <Text style={styles.quickStatLabel}>Treinos</Text>
+              </View>
+              <View style={styles.quickStatItem}>
+                <MaterialIcons name="timer" size={24} color="#007AFF" />
+                <Text style={styles.quickStatValue}>-</Text>
+                <Text style={styles.quickStatLabel}>Total</Text>
+              </View>
+            </View>
 
-        {/* Treino Atual Card */}
-        <TouchableOpacity 
-          style={styles.activeWorkoutCard}
-          onPress={() => navigation.navigate('WorkoutActive')}>
-          <LinearGradient
-            colors={['#13ec5b', '#0eb545']}
-            start={{x: 0, y: 0}}
-            end={{x: 1, y: 1}}
-            style={styles.activeWorkoutGradient}>
-            <View style={styles.activeWorkoutHeader}>
-              <View style={styles.pulseDot} />
-              <Text style={styles.activeWorkoutLabel}>TREINO EM ANDAMENTO</Text>
-            </View>
-            <Text style={styles.activeWorkoutTitle}>Treino A - Peito e Tríceps</Text>
-            <View style={styles.activeWorkoutInfo}>
-              <View style={styles.activeWorkoutInfoItem}>
-                <MaterialIcons name="timer" size={18} color="rgba(16,34,22,0.8)" />
-                <Text style={styles.activeWorkoutInfoText}>12:45</Text>
+            {/* Treino do Dia */}
+            {treinos.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Seu Treino</Text>
+                <TouchableOpacity 
+                  style={styles.activeWorkoutCard}
+                  onPress={() => navigation.navigate('WorkoutActive', {treinoId: treinos[0].id})}>
+                  <LinearGradient
+                    colors={['#13ec5b', '#0eb545']}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 1}}
+                    style={styles.activeWorkoutGradient}>
+                    <View style={styles.activeWorkoutHeader}>
+                      <MaterialIcons name="fitness-center" size={20} color="rgba(16,34,22,0.8)" />
+                      <Text style={styles.activeWorkoutLabel}>TREINO DISPONÍVEL</Text>
+                    </View>
+                    <Text style={styles.activeWorkoutTitle}>{treinos[0].nome}</Text>
+                    {treinos[0].descricao && (
+                      <Text style={styles.activeWorkoutDescription} numberOfLines={2}>
+                        {treinos[0].descricao}
+                      </Text>
+                    )}
+                    <View style={styles.activeWorkoutInfo}>
+                      {treinos[0].dia_semana && (
+                        <View style={styles.activeWorkoutInfoItem}>
+                          <MaterialIcons name="event" size={18} color="rgba(16,34,22,0.8)" />
+                          <Text style={styles.activeWorkoutInfoText}>{treinos[0].dia_semana.nome}</Text>
+                        </View>
+                      )}
+                      {treinos[0].exercicios && (
+                        <View style={styles.activeWorkoutInfoItem}>
+                          <MaterialIcons name="fitness-center" size={18} color="rgba(16,34,22,0.8)" />
+                          <Text style={styles.activeWorkoutInfoText}>{treinos[0].exercicios.length} exercícios</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.startButton}>
+                      <Text style={styles.startButtonText}>Iniciar Treino</Text>
+                      <MaterialIcons name="arrow-forward" size={20} color="#102216" />
+                    </View>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <View style={styles.emptyWorkoutCard}>
+                <MaterialIcons name="fitness-center" size={48} color="#666" />
+                <Text style={styles.emptyWorkoutTitle}>Nenhum treino disponível</Text>
+                <Text style={styles.emptyWorkoutText}>
+                  Aguarde seu personal trainer criar um treino para você
+                </Text>
               </View>
-              <View style={styles.activeWorkoutInfoItem}>
-                <MaterialIcons name="fitness-center" size={18} color="rgba(16,34,22,0.8)" />
-                <Text style={styles.activeWorkoutInfoText}>3/8 exercícios</Text>
-              </View>
-            </View>
-            <View style={styles.progressBar}>
-              <View style={styles.progressFill} />
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+            )}
 
         {/* Quick Actions */}
         <Text style={styles.sectionTitle}>Ações Rápidas</Text>
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => treinos.length > 0 && navigation.navigate('WorkoutActive', {treinoId: treinos[0].id})}>
             <View style={[styles.actionIcon, {backgroundColor: 'rgba(19,236,91,0.1)'}]}>
               <MaterialIcons name="play-arrow" size={28} color="#13ec5b" />
             </View>
@@ -103,41 +175,38 @@ export default function HomeScreen({navigation}: any) {
             <Text style={styles.actionLabel}>Plano</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Workouts')}>
             <View style={[styles.actionIcon, {backgroundColor: 'rgba(175,82,222,0.1)'}]}>
-              <MaterialIcons name="restaurant" size={28} color="#AF52DE" />
+              <MaterialIcons name="fitness-center" size={28} color="#AF52DE" />
             </View>
-            <Text style={styles.actionLabel}>Nutrição</Text>
+            <Text style={styles.actionLabel}>Ver Treinos</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Próximos Treinos */}
-        <Text style={styles.sectionTitle}>Próximos Treinos</Text>
-        <View style={styles.upcomingWorkouts}>
-          <View style={styles.upcomingCard}>
-            <View style={styles.upcomingDate}>
-              <Text style={styles.upcomingDay}>31</Text>
-              <Text style={styles.upcomingMonth}>DEZ</Text>
+        {/* Mensalidade */}
+        {proximaMensalidade && (
+          <>
+            <Text style={styles.sectionTitle}>Próxima Mensalidade</Text>
+            <View style={styles.mensalidadeCard}>
+              <View style={styles.mensalidadeIcon}>
+                <MaterialIcons name="payment" size={32} color="#ff9500" />
+              </View>
+              <View style={styles.mensalidadeInfo}>
+                <Text style={styles.mensalidadeValor}>
+                  R$ {proximaMensalidade.valor?.toFixed(2)}
+                </Text>
+                <Text style={styles.mensalidadeVencimento}>
+                  Vencimento: {new Date(proximaMensalidade.data_vencimento).toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.mensalidadeButton} onPress={() => navigation.navigate('Plan')}>
+                <Text style={styles.mensalidadeButtonText}>Ver Detalhes</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.upcomingInfo}>
-              <Text style={styles.upcomingTitle}>Treino B - Costas e Bíceps</Text>
-              <Text style={styles.upcomingTime}>Amanhã • 07:00</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="#666" />
-          </View>
-
-          <View style={styles.upcomingCard}>
-            <View style={styles.upcomingDate}>
-              <Text style={styles.upcomingDay}>01</Text>
-              <Text style={styles.upcomingMonth}>JAN</Text>
-            </View>
-            <View style={styles.upcomingInfo}>
-              <Text style={styles.upcomingTitle}>Treino C - Pernas</Text>
-              <Text style={styles.upcomingTime}>Quarta • 07:00</Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="#666" />
-          </View>
-        </View>
+          </>
+        )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -147,6 +216,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#102216',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#92c9a4',
   },
   header: {
     flexDirection: 'row',
@@ -248,7 +328,13 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: '#102216',
+    marginBottom: 8,
+  },
+  activeWorkoutDescription: {
+    fontSize: 14,
+    color: 'rgba(16,34,22,0.7)',
     marginBottom: 16,
+    lineHeight: 20,
   },
   activeWorkoutInfo: {
     flexDirection: 'row',
@@ -265,17 +351,42 @@ const styles = StyleSheet.create({
     color: 'rgba(16,34,22,0.8)',
     fontWeight: '600',
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: 'rgba(16,34,22,0.2)',
-    borderRadius: 3,
-    overflow: 'hidden',
+  startButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(16,34,22,0.15)',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
   },
-  progressFill: {
-    width: '38%',
-    height: '100%',
-    backgroundColor: '#102216',
-    borderRadius: 3,
+  startButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#102216',
+  },
+  emptyWorkoutCard: {
+    backgroundColor: '#1a3322',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    gap: 12,
+  },
+  emptyWorkoutTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  emptyWorkoutText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -305,48 +416,47 @@ const styles = StyleSheet.create({
     color: '#92c9a4',
     textAlign: 'center',
   },
-  upcomingWorkouts: {
-    gap: 12,
-  },
-  upcomingCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  mensalidadeCard: {
     backgroundColor: '#1a3322',
     borderRadius: 16,
     padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
+    marginBottom: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
   },
-  upcomingDate: {
-    width: 50,
-    height: 50,
-    borderRadius: 12,
-    backgroundColor: 'rgba(19,236,91,0.1)',
+  mensalidadeIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,149,0,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  upcomingDay: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#13ec5b',
-  },
-  upcomingMonth: {
-    fontSize: 10,
-    color: '#13ec5b',
-    fontWeight: '600',
-  },
-  upcomingInfo: {
+  mensalidadeInfo: {
     flex: 1,
+    gap: 4,
   },
-  upcomingTitle: {
-    fontSize: 15,
-    fontWeight: '600',
+  mensalidadeValor: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
   },
-  upcomingTime: {
+  mensalidadeVencimento: {
     fontSize: 13,
     color: '#666',
+  },
+  mensalidadeButton: {
+    backgroundColor: 'rgba(255,149,0,0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  mensalidadeButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#ff9500',
   },
 });

@@ -1,70 +1,43 @@
-import React, {useState} from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
+import React, {useState, useEffect} from 'react';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
-
-const WORKOUTS = [
-  {
-    id: '1',
-    name: 'Treino A - Peito e Tríceps',
-    duration: 45,
-    exercises: 8,
-    category: 'Força',
-    difficulty: 'Intermediário',
-    icon: 'fitness-center',
-    color: '#13ec5b',
-  },
-  {
-    id: '2',
-    name: 'Treino B - Costas e Bíceps',
-    duration: 50,
-    exercises: 9,
-    category: 'Força',
-    difficulty: 'Intermediário',
-    icon: 'fitness-center',
-    color: '#007AFF',
-  },
-  {
-    id: '3',
-    name: 'Treino C - Pernas',
-    duration: 60,
-    exercises: 10,
-    category: 'Força',
-    difficulty: 'Avançado',
-    icon: 'fitness-center',
-    color: '#ff9500',
-  },
-  {
-    id: '4',
-    name: 'Cardio HIIT',
-    duration: 30,
-    exercises: 6,
-    category: 'Cardio',
-    difficulty: 'Iniciante',
-    icon: 'directions-run',
-    color: '#FF3B30',
-  },
-  {
-    id: '5',
-    name: 'Treino D - Ombros',
-    duration: 40,
-    exercises: 7,
-    category: 'Força',
-    difficulty: 'Intermediário',
-    icon: 'fitness-center',
-    color: '#AF52DE',
-  },
-];
+import {treinoService, Treino} from '../services/treino';
 
 export default function WorkoutsScreen({navigation}: any) {
+  const [treinos, setTreinos] = useState<Treino[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
 
-  const categories = ['Todos', 'Força', 'Cardio'];
+  useEffect(() => {
+    loadTreinos();
+  }, []);
+
+  async function loadTreinos() {
+    try {
+      setLoading(true);
+      const data = await treinoService.getTreinos();
+      setTreinos(data);
+    } catch (error) {
+      console.error('Erro ao carregar treinos:', error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadTreinos();
+    setRefreshing(false);
+  }
+
+  const categories = ['Todos', ...new Set(treinos.map(t => t.tipo).filter(Boolean))];
 
   const filteredWorkouts = selectedCategory === 'Todos' 
-    ? WORKOUTS 
-    : WORKOUTS.filter(w => w.category === selectedCategory);
+    ? treinos 
+    : treinos.filter(t => t.tipo === selectedCategory);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -79,80 +52,112 @@ export default function WorkoutsScreen({navigation}: any) {
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#13ec5b" />
+        }>
         
-        {/* Category Filters */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesScroll}
-          contentContainerStyle={styles.categories}>
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category}
-              style={[
-                styles.categoryChip,
-                selectedCategory === category && styles.categoryChipActive,
-              ]}
-              onPress={() => setSelectedCategory(category)}>
-              <Text
-                style={[
-                  styles.categoryChipText,
-                  selectedCategory === category && styles.categoryChipTextActive,
-                ]}>
-                {category}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#13ec5b" />
+            <Text style={styles.loadingText}>Carregando treinos...</Text>
+          </View>
+        ) : treinos.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MaterialIcons name="fitness-center" size={64} color="#666" />
+            <Text style={styles.emptyText}>Nenhum treino encontrado</Text>
+            <Text style={styles.emptySubtext}>Seu personal trainer ainda não criou treinos para você</Text>
+          </View>
+        ) : (
+          <>
+            {/* Category Filters */}
+            {categories.length > 1 && (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                style={styles.categoriesScroll}
+                contentContainerStyle={styles.categories}>
+                {categories.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categoryChip,
+                      selectedCategory === category && styles.categoryChipActive,
+                    ]}
+                    onPress={() => setSelectedCategory(category)}>
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selectedCategory === category && styles.categoryChipTextActive,
+                      ]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
 
-        {/* Workouts List */}
-        <View style={styles.workoutsList}>
-          {filteredWorkouts.map((workout) => (
-            <TouchableOpacity 
-              key={workout.id} 
-              style={styles.workoutCard}
-              onPress={() => navigation.navigate('WorkoutActive')}
-              activeOpacity={0.7}>
-              <View style={styles.workoutCardContent}>
-                <View style={[styles.workoutIcon, {backgroundColor: `${workout.color}15`}]}>
-                  <MaterialIcons name={workout.icon as any} size={28} color={workout.color} />
-                </View>
-                
-                <View style={styles.workoutInfo}>
-                  <Text style={styles.workoutName}>{workout.name}</Text>
-                  <View style={styles.workoutMeta}>
-                    <View style={styles.metaItem}>
-                      <MaterialIcons name="timer" size={16} color="#666" />
-                      <Text style={styles.metaText}>{workout.duration} min</Text>
+            {/* Workouts List */}
+            <View style={styles.workoutsList}>
+              {filteredWorkouts.map((treino) => (
+                <TouchableOpacity 
+                  key={treino.id} 
+                  style={styles.workoutCard}
+                  onPress={() => navigation.navigate('WorkoutActive', {treinoId: treino.id})}
+                  activeOpacity={0.7}>
+                  <View style={styles.workoutCardContent}>
+                    <View style={[styles.workoutIcon, {backgroundColor: 'rgba(19,236,91,0.1)'}]}>
+                      <MaterialIcons name="fitness-center" size={28} color="#13ec5b" />
                     </View>
-                    <View style={styles.metaDivider} />
-                    <View style={styles.metaItem}>
-                      <MaterialIcons name="fitness-center" size={16} color="#666" />
-                      <Text style={styles.metaText}>{workout.exercises} exercícios</Text>
+                    
+                    <View style={styles.workoutInfo}>
+                      <Text style={styles.workoutName}>{treino.nome}</Text>
+                      {treino.descricao && (
+                        <Text style={styles.workoutDescription} numberOfLines={2}>
+                          {treino.descricao}
+                        </Text>
+                      )}
+                      <View style={styles.workoutMeta}>
+                        {treino.dia_semana && (
+                          <View style={styles.metaItem}>
+                            <MaterialIcons name="event" size={16} color="#666" />
+                            <Text style={styles.metaText}>{treino.dia_semana.nome}</Text>
+                          </View>
+                        )}
+                        {treino.grupo_muscular && (
+                          <>
+                            {treino.dia_semana && <View style={styles.metaDivider} />}
+                            <View style={styles.metaItem}>
+                              <MaterialIcons name="fitness-center" size={16} color="#666" />
+                              <Text style={styles.metaText}>{treino.grupo_muscular.nome}</Text>
+                            </View>
+                          </>
+                        )}
+                        {treino.exercicios && treino.exercicios.length > 0 && (
+                          <>
+                            <View style={styles.metaDivider} />
+                            <View style={styles.metaItem}>
+                              <Text style={styles.metaText}>{treino.exercicios.length} exercícios</Text>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                      <View style={styles.badges}>
+                        {treino.tipo && (
+                          <View style={[styles.badge, {backgroundColor: 'rgba(19,236,91,0.1)'}]}>
+                            <Text style={[styles.badgeText, {color: '#13ec5b'}]}>{treino.tipo}</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
+
+                    <MaterialIcons name="chevron-right" size={24} color="#666" />
                   </View>
-                  <View style={styles.badges}>
-                    <View style={[styles.badge, {backgroundColor: 'rgba(19,236,91,0.1)'}]}>
-                      <Text style={[styles.badgeText, {color: '#13ec5b'}]}>{workout.category}</Text>
-                    </View>
-                    <View style={[styles.badge, {backgroundColor: 'rgba(146,201,164,0.1)'}]}>
-                      <Text style={[styles.badgeText, {color: '#92c9a4'}]}>{workout.difficulty}</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <MaterialIcons name="chevron-right" size={24} color="#666" />
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Criar Novo Treino */}
-        <TouchableOpacity style={styles.createWorkoutButton}>
-          <MaterialIcons name="add-circle" size={24} color="#13ec5b" />
-          <Text style={styles.createWorkoutText}>Criar Novo Treino</Text>
-        </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -160,6 +165,36 @@ export default function WorkoutsScreen({navigation}: any) {
 
 const styles = StyleSheet.create({
   container: {
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#92c9a4',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 100,
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
     flex: 1,
     backgroundColor: '#102216',
   },
@@ -189,7 +224,12 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
+  scrollCDescription: {
+    fontSize: 13,
+    color: '#92c9a4',
+    lineHeight: 18,
+  },
+  workoutontent: {
     paddingBottom: 100,
   },
   categoriesScroll: {

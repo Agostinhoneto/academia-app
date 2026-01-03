@@ -1,8 +1,10 @@
 import React from 'react';
+import {View, ActivityIndicator} from 'react-native';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {MaterialIcons} from '@expo/vector-icons';
+import {useAuth} from '../contexts/AuthContext';
 
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -102,11 +104,24 @@ function MainTabs() {
 }
 
 export default function AppNavigator() {
+  const {signed, loading} = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#102216'}}>
+        <ActivityIndicator size="large" color="#13ec5b" />
+      </View>
+    );
+  }
+
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{headerShown: false}}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="MainTabs" component={MainTabs} />
+        {!signed ? (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        ) : (
+          <Stack.Screen name="MainTabs" component={MainTabs} />
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
