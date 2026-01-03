@@ -7,32 +7,106 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
+import {treinoService, Treino, ExercicioTreino} from '../services/treino';
+import {getExerciseImage} from '../utils/exerciseImages';
 
 interface Set {
   number: number;
-  weight: number;
+  weight: string;
   reps: number;
   completed: boolean;
 }
 
 interface Exercise {
-  id: string;
+  id: number;
   name: string;
   sets: number;
   reps: string;
-  restTime: number;
-  image: string;
+  carga?: string;
+  image?: string;
+  observacoes?: string;
   sets_data: Set[];
-  lastRecord?: string;
   isActive?: boolean;
 }
 
-export default function WorkoutActiveScreen({navigation}: any) {
-  const [timer, setTimer] = useState(765); // 12:45 em segundos
+export default function WorkoutActiveScreen({navigation, route}: any) {
+  const {treinoId} = route.params || {};
+  const [treino, setTreino] = useState<Treino | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [finalizando, setFinalizando] = useState(false);
+  const [timer, setTimer] = useState(0);
   const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+
+  useEffect(() => {
+    console.log('🔵 WorkoutActiveScreen montado. treinoId:', treinoId);
+    if (treinoId) {
+      loadTreino();
+    } else {
+      console.log('❌ Nenhum treinoId fornecido');
+      Alert.alert('Erro', 'ID do treino não fornecido');
+      navigation.goBack();
+    }
+  }, [treinoId]);
+
+  async function loadTreino() {
+    try {
+      console.log('🔄 Iniciando carregamento do treino ID:', treinoId);
+      setLoading(true);
+      const data = await treinoService.getTreinoById(treinoId);
+      console.log('📦 Dados do treino recebidos:', data);
+      setTreino(data);
+      
+      // Converter exercícios do treino para o formato do componente
+      if (data.exercicios && data.exercicios.length > 0) {
+        console.log(`✅ ${data.exercicios.length} exercícios encontrados`);
+        const mappedExercises: Exercise[] = data.exercicios.map((ex: any, index) => {
+          console.log(`🖼️ Exercício ${ex.nome}: imagem API =`, ex.imagem);
+          const imageUrl = getExerciseImage(ex.nome, ex.imagem);
+          console.log(`📸 URL final da imagem para ${ex.nome}:`, imageUrl);
+          
+          // Os dados de séries/reps/carga estão no pivot
+          const series = ex.pivot?.series || 3;
+          const repeticoes = ex.pivot?.repeticoes?.toString() || '10';
+          const carga = ex.pivot?.carga?.toString() || '0';
+          
+          return {
+            id: ex.id,
+            name: ex.nome || `Exercício ${index + 1}`,
+            sets: series,
+            reps: repeticoes,
+            carga: carga + 'kg',
+            image: imageUrl,
+            observacoes: ex.descricao,
+            sets_data: Array.from({length: series}, (_, i) => ({
+              number: i + 1,
+              weight: carga,
+              reps: parseInt(repeticoes) || 0,
+              completed: false,
+            })),
+            isActive: index === 0,
+          };
+        });
+        setExercises(mappedExercises);
+        console.log('✅ Exercícios mapeados:', mappedExercises.length);
+      } else {
+        console.log('⚠️ Nenhum exercício encontrado no treino');
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao carregar treino:', error);
+      console.error('❌ Detalhes do erro:', error.response?.data || error.message);
+      Alert.alert('Erro', `Não foi possível carregar o treino: ${error.message}`);
+      navigation.goBack();
+    } finally {
+      console.log('✅ Carregamento finalizado');
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -48,44 +122,7 @@ export default function WorkoutActiveScreen({navigation}: any) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const [exercises, setExercises] = useState<Exercise[]>([
-    {
-      id: '1',
-      name: 'Supino Reto com Barra',
-      sets: 4,
-      reps: '10-12',
-      restTime: 90,
-      image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200',
-      lastRecord: '58kg x 10',
-      isActive: true,
-      sets_data: [
-        {number: 1, weight: 60, reps: 12, completed: true},
-        {number: 2, weight: 60, reps: 10, completed: false},
-        {number: 3, weight: 60, reps: 10, completed: false},
-        {number: 4, weight: 60, reps: 8, completed: false},
-      ],
-    },
-    {
-      id: '2',
-      name: 'Crucifixo Inclinado',
-      sets: 3,
-      reps: '12-15',
-      restTime: 60,
-      image: 'https://images.unsplash.com/photo-1584466977773-e625c37cdd50?w=200',
-      sets_data: [],
-    },
-    {
-      id: '3',
-      name: 'Tríceps Corda',
-      sets: 4,
-      reps: '15',
-      restTime: 60,
-      image: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?w=200',
-      sets_data: [],
-    },
-  ]);
-
-  const handleCompleteSet = (exerciseId: string, setNumber: number) => {
+  const handleCompleteSet = (exerciseId: number, setNumber: number) => {
     setExercises(prev =>
       prev.map(ex => {
         if (ex.id === exerciseId) {
@@ -104,6 +141,8 @@ export default function WorkoutActiveScreen({navigation}: any) {
   const completedCount = 3;
   const totalExercises = 8;
   const progress = (completedCount / totalExercises) * 100;
+
+  console.log('🎯 WorkoutActiveScreen renderizando - loading:', loading, 'treino:', !!treino);
 
   return (
     <View style={styles.container}>
@@ -139,53 +178,67 @@ export default function WorkoutActiveScreen({navigation}: any) {
       </SafeAreaView>
 
       {/* Main Content */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Workout Info */}
-        <View style={styles.workoutInfo}>
-          <Text style={styles.workoutTitle}>Treino A - Peito e Tríceps</Text>
-          <Text style={styles.workoutDescription}>
-            Foco em hipertrofia e força máxima. Descanse 90s entre as séries.
-          </Text>
-
-          {/* Progress Bar */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Progresso</Text>
-              <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
-            </View>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, {width: `${progress}%`}]} />
-            </View>
-            <Text style={styles.progressText}>
-              {completedCount} de {totalExercises} Exercícios Completos
-            </Text>
-          </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#13ec5b" />
+          <Text style={styles.loadingText}>Carregando treino...</Text>
         </View>
-
-        {/* Segmented Control */}
-        <View style={styles.segmentedControl}>
-          <View style={styles.segmentedWrapper}>
-            <TouchableOpacity
-              style={[styles.segment, activeTab === 'pending' && styles.segmentActive]}
-              onPress={() => setActiveTab('pending')}
-            >
-              <Text style={[styles.segmentText, activeTab === 'pending' && styles.segmentTextActive]}>
-                A Fazer (5)
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.segment, activeTab === 'completed' && styles.segmentActive]}
-              onPress={() => setActiveTab('completed')}
-            >
-              <Text style={[styles.segmentText, activeTab === 'completed' && styles.segmentTextActive]}>
-                Concluídos (3)
-              </Text>
-            </TouchableOpacity>
-          </View>
+      ) : !treino || exercises.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <MaterialIcons name="fitness-center" size={64} color="#666" />
+          <Text style={styles.emptyText}>Nenhum exercício encontrado</Text>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </TouchableOpacity>
         </View>
+      ) : (
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          {/* Workout Info */}
+          <View style={styles.workoutInfo}>
+            <Text style={styles.workoutTitle}>{treino.nome}</Text>
+            {treino.descricao && (
+              <Text style={styles.workoutDescription}>{treino.descricao}</Text>
+            )}
 
-        {/* Exercise List */}
-        <View style={styles.exerciseList}>
+            {/* Progress Bar */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>Progresso</Text>
+                <Text style={styles.progressPercent}>{Math.round(progress)}%</Text>
+              </View>
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, {width: `${progress}%`}]} />
+              </View>
+              <Text style={styles.progressText}>
+                {completedCount} de {totalExercises} Exercícios Completos
+              </Text>
+            </View>
+          </View>
+
+          {/* Segmented Control */}
+          <View style={styles.segmentedControl}>
+            <View style={styles.segmentedWrapper}>
+              <TouchableOpacity
+                style={[styles.segment, activeTab === 'pending' && styles.segmentActive]}
+                onPress={() => setActiveTab('pending')}
+              >
+                <Text style={[styles.segmentText, activeTab === 'pending' && styles.segmentTextActive]}>
+                  A Fazer ({totalExercises - completedCount})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.segment, activeTab === 'completed' && styles.segmentActive]}
+                onPress={() => setActiveTab('completed')}
+              >
+                <Text style={[styles.segmentText, activeTab === 'completed' && styles.segmentTextActive]}>
+                  Concluídos ({completedCount})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Exercise List */}
+          <View style={styles.exerciseList}>
           {exercises.map(exercise => (
             <View key={exercise.id}>
               {exercise.isActive ? (
@@ -194,18 +247,26 @@ export default function WorkoutActiveScreen({navigation}: any) {
                   <View style={styles.activeIndicator} />
                   
                   <View style={styles.exerciseHeader}>
-                    <View style={styles.exerciseImageContainer}>
-                      <Image source={{uri: exercise.image}} style={styles.exerciseImage} />
-                      <View style={styles.exerciseImageOverlay} />
-                      <MaterialIcons name="fitness-center" size={18} color="#fff" style={styles.exerciseImageIcon} />
+                    <View style={styles.exerciseIconContainer}>
+                      {exercise.image ? (
+                        <Image 
+                          source={{uri: exercise.image}} 
+                          style={styles.exerciseImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <MaterialIcons name="fitness-center" size={32} color="#13ec5b" />
+                      )}
                     </View>
                     
                     <View style={styles.exerciseHeaderInfo}>
                       <View style={styles.exerciseHeaderTop}>
                         <Text style={styles.exerciseName}>{exercise.name}</Text>
-                        <TouchableOpacity>
-                          <MaterialIcons name="info-outline" size={20} color="#92c9a4" />
-                        </TouchableOpacity>
+                        {exercise.observacoes && (
+                          <TouchableOpacity>
+                            <MaterialIcons name="info-outline" size={20} color="#92c9a4" />
+                          </TouchableOpacity>
+                        )}
                       </View>
                       <View style={styles.exerciseMeta}>
                         <View style={styles.metaItem}>
@@ -214,9 +275,18 @@ export default function WorkoutActiveScreen({navigation}: any) {
                         </View>
                         <View style={styles.metaDot} />
                         <View style={styles.metaItem}>
-                          <MaterialIcons name="timer" size={16} color="#92c9a4" />
-                          <Text style={styles.metaText}>{exercise.restTime}s</Text>
+                          <MaterialIcons name="repeat" size={16} color="#92c9a4" />
+                          <Text style={styles.metaText}>{exercise.reps} Reps</Text>
                         </View>
+                        {exercise.carga && (
+                          <>
+                            <View style={styles.metaDot} />
+                            <View style={styles.metaItem}>
+                              <MaterialIcons name="fitness-center" size={16} color="#92c9a4" />
+                              <Text style={styles.metaText}>{exercise.carga}</Text>
+                            </View>
+                          </>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -236,18 +306,16 @@ export default function WorkoutActiveScreen({navigation}: any) {
                         style={[
                           styles.setRow,
                           set.completed && styles.setRowCompleted,
-                          !set.completed && set.number === 2 && styles.setRowCurrent,
                         ]}
                       >
                         <View style={styles.setNumberContainer}>
                           <View style={[
                             styles.setNumber,
                             set.completed && styles.setNumberDone,
-                            !set.completed && set.number === 2 && styles.setNumberActive,
                           ]}>
                             <Text style={[
                               styles.setNumberText,
-                              (set.completed || set.number === 2) && styles.setNumberTextActive,
+                              set.completed && styles.setNumberTextActive,
                             ]}>
                               {set.number}
                             </Text>
@@ -307,25 +375,20 @@ export default function WorkoutActiveScreen({navigation}: any) {
                       </View>
                     ))}
                   </View>
-
-                  {/* Last Record */}
-                  {exercise.lastRecord && (
-                    <View style={styles.lastRecord}>
-                      <View style={styles.lastRecordLeft}>
-                        <MaterialIcons name="history" size={14} color="#92c9a4" />
-                        <Text style={styles.lastRecordText}>Último: {exercise.lastRecord}</Text>
-                      </View>
-                      <TouchableOpacity>
-                        <Text style={styles.historyLink}>Ver Histórico</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
                 </View>
               ) : (
                 // Pending Exercise Card
                 <TouchableOpacity style={styles.pendingExerciseCard}>
                   <View style={styles.pendingImageContainer}>
-                    <Image source={{uri: exercise.image}} style={styles.pendingImage} />
+                    {exercise.image ? (
+                      <Image 
+                        source={{uri: exercise.image}} 
+                        style={styles.pendingImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <MaterialIcons name="fitness-center" size={32} color="#666" />
+                    )}
                   </View>
                   
                   <View style={styles.pendingInfo}>
@@ -350,16 +413,33 @@ export default function WorkoutActiveScreen({navigation}: any) {
         </View>
 
         <View style={{height: 120}} />
-      </ScrollView>
+        </ScrollView>
+      )}
 
       {/* Floating Bottom Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity style={styles.cancelButton}>
+        <TouchableOpacity 
+          style={styles.cancelButton}
+          activeOpacity={0.7}
+          onPress={() => {
+            console.log('🔴 BOTÃO CANCELAR CLICADO!');
+            navigation.goBack();
+          }}>
           <MaterialIcons name="cancel" size={24} color="#ef4444" />
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={styles.finishButton}>
+        <TouchableOpacity 
+          style={[styles.finishButton, finalizando && styles.finishButtonDisabled]}
+          activeOpacity={0.7}
+          disabled={finalizando}
+          onPress={() => {
+            console.log('🟢 BOTÃO FINALIZAR CLICADO!');
+            console.log('✅ Treino finalizado com sucesso!');
+            // TODO: Adicionar chamada à API quando o endpoint existir
+            // await treinoService.finalizarTreino(treinoId);
+            navigation.goBack();
+          }}>
           <MaterialIcons name="flag" size={24} color="#102216" />
           <Text style={styles.finishButtonText}>Finalizar Treino</Text>
         </TouchableOpacity>
@@ -372,6 +452,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#102216',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#92c9a4',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  backButton: {
+    backgroundColor: '#13ec5b',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#102216',
   },
   header: {
     backgroundColor: 'rgba(16,34,22,0.9)',
@@ -562,26 +677,19 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
-  exerciseImageContainer: {
+  exerciseIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 12,
+    backgroundColor: 'rgba(19,236,91,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: 'rgba(16,34,22,0.5)',
   },
   exerciseImage: {
     width: '100%',
     height: '100%',
-    opacity: 0.8,
-  },
-  exerciseImageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  exerciseImageIcon: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
+    borderRadius: 12,
   },
   exerciseHeaderInfo: {
     flex: 1,
@@ -818,7 +926,11 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     paddingTop: 48,
-    background: 'linear-gradient(to top, #102216, rgba(16,34,22,0.9), transparent)',
+    backgroundColor: '#102216',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(19,236,91,0.1)',
+    zIndex: 1000,
+    elevation: 10,
   },
   cancelButton: {
     flex: 1,
@@ -851,6 +963,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 8,
+  },
+  finishButtonDisabled: {
+    backgroundColor: '#666',
+    opacity: 0.6,
   },
   finishButtonText: {
     fontSize: 16,

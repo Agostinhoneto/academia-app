@@ -38,17 +38,7 @@ function MainTabs() {
           elevation: 0,
         },
       }}
-      initialRouteName="WorkoutActive">
-      <Tab.Screen
-        name="WorkoutActive"
-        component={WorkoutActiveScreen}
-        options={{
-          tabBarLabel: 'Treino Ativo',
-          tabBarIcon: ({color, size}) => (
-            <MaterialIcons name="play-circle-filled" size={size} color={color} />
-          ),
-        }}
-      />
+      initialRouteName="Home">
       <Tab.Screen
         name="Home"
         component={HomeScreen}
@@ -120,7 +110,10 @@ export default function AppNavigator() {
         {!signed ? (
           <Stack.Screen name="Login" component={LoginScreen} />
         ) : (
-          <Stack.Screen name="MainTabs" component={MainTabs} />
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="WorkoutActive" component={WorkoutActiveScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

@@ -17,16 +17,18 @@ api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     
-    console.log('🔑 Token recuperado:', token ? 'Token existe' : 'Token não encontrado');
-    
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('✅ Authorization header adicionado');
+    if (token) {
+      console.log('🔑 Token recuperado (primeiros 30 chars):', token.substring(0, 30) + '...');
+      if (config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+        console.log('✅ Authorization header definido:', config.headers.Authorization.substring(0, 40) + '...');
+      }
     } else {
-      console.log('❌ Token não adicionado ao header');
+      console.log('❌ NENHUM TOKEN ENCONTRADO no AsyncStorage!');
     }
     
     console.log('🌐 Requisição:', config.method?.toUpperCase(), config.url);
+    console.log('📋 Headers completos:', JSON.stringify(config.headers, null, 2));
     
     return config;
   },
