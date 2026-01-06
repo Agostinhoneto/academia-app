@@ -123,19 +123,46 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
   };
 
   const handleCompleteSet = (exerciseId: number, setNumber: number) => {
-    setExercises(prev =>
-      prev.map(ex => {
+    setExercises(prev => {
+      const currentIndex = prev.findIndex(e => e.id === exerciseId);
+      
+      return prev.map((ex, idx) => {
         if (ex.id === exerciseId) {
+          // Atualizar o set como completo
+          const updatedSets = ex.sets_data.map(set =>
+            set.number === setNumber ? {...set, completed: true} : set
+          );
+          
+          // Verificar se todos os sets foram completos APÓS essa atualização
+          const allCompleted = updatedSets.every(s => s.completed);
+          
+          console.log(`✅ Set ${setNumber} do exercício ${ex.name} marcado como completo. Todos completos: ${allCompleted}`);
+          
           return {
             ...ex,
-            sets_data: ex.sets_data.map(set =>
-              set.number === setNumber ? {...set, completed: true} : set
-            ),
+            sets_data: updatedSets,
+            isActive: !allCompleted, // Desativa se todos completados
           };
         }
+        
+        // Se este é o próximo exercício após o que foi completado
+        if (idx === currentIndex + 1) {
+          // Verifica se o exercício atual (anterior) teve todos os sets completos
+          const currentEx = prev[currentIndex];
+          const currentExSets = currentEx.sets_data.map(set =>
+            set.number === setNumber ? {...set, completed: true} : set
+          );
+          const currentIsComplete = currentExSets.every(s => s.completed);
+          
+          if (currentIsComplete) {
+            console.log(`🎯 Ativando próximo exercício: ${ex.name}`);
+            return {...ex, isActive: true};
+          }
+        }
+        
         return ex;
-      })
-    );
+      });
+    });
   };
 
   const completedCount = 3;
@@ -215,170 +242,30 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
             </View>
           </View>
 
-          {/* Segmented Control */}
-          <View style={styles.segmentedControl}>
-            <View style={styles.segmentedWrapper}>
-              <TouchableOpacity
-                style={[styles.segment, activeTab === 'pending' && styles.segmentActive]}
-                onPress={() => setActiveTab('pending')}
-              >
-                <Text style={[styles.segmentText, activeTab === 'pending' && styles.segmentTextActive]}>
-                  A Fazer ({totalExercises - completedCount})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.segment, activeTab === 'completed' && styles.segmentActive]}
-                onPress={() => setActiveTab('completed')}
-              >
-                <Text style={[styles.segmentText, activeTab === 'completed' && styles.segmentTextActive]}>
-                  Concluídos ({completedCount})
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           {/* Exercise List */}
           <View style={styles.exerciseList}>
-          {exercises.map(exercise => (
-            <View key={exercise.id}>
-              {exercise.isActive ? (
-                // Active Exercise Card
-                <View style={styles.activeExerciseCard}>
-                  <View style={styles.activeIndicator} />
-                  
-                  <View style={styles.exerciseHeader}>
-                    <View style={styles.exerciseIconContainer}>
-                      {exercise.image ? (
-                        <Image 
-                          source={{uri: exercise.image}} 
-                          style={styles.exerciseImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <MaterialIcons name="fitness-center" size={32} color="#13ec5b" />
-                      )}
-                    </View>
-                    
-                    <View style={styles.exerciseHeaderInfo}>
-                      <View style={styles.exerciseHeaderTop}>
-                        <Text style={styles.exerciseName}>{exercise.name}</Text>
-                        {exercise.observacoes && (
-                          <TouchableOpacity>
-                            <MaterialIcons name="info-outline" size={20} color="#92c9a4" />
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                      <View style={styles.exerciseMeta}>
-                        <View style={styles.metaItem}>
-                          <MaterialIcons name="repeat" size={16} color="#92c9a4" />
-                          <Text style={styles.metaText}>{exercise.sets} Séries</Text>
-                        </View>
-                        <View style={styles.metaDot} />
-                        <View style={styles.metaItem}>
-                          <MaterialIcons name="repeat" size={16} color="#92c9a4" />
-                          <Text style={styles.metaText}>{exercise.reps} Reps</Text>
-                        </View>
-                        {exercise.carga && (
-                          <>
-                            <View style={styles.metaDot} />
-                            <View style={styles.metaItem}>
-                              <MaterialIcons name="fitness-center" size={16} color="#92c9a4" />
-                              <Text style={styles.metaText}>{exercise.carga}</Text>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    </View>
-                  </View>
-
-                  {/* Sets Table */}
-                  <View style={styles.setsContainer}>
-                    <View style={styles.setsHeader}>
-                      <Text style={[styles.setsHeaderText, {flex: 1}]}>SET</Text>
-                      <Text style={[styles.setsHeaderText, {flex: 1.5}]}>KG</Text>
-                      <Text style={[styles.setsHeaderText, {flex: 1.5}]}>REPS</Text>
-                      <Text style={[styles.setsHeaderText, {flex: 2}]}>STATUS</Text>
-                    </View>
-
-                    {exercise.sets_data.map(set => (
-                      <View
-                        key={set.number}
-                        style={[
-                          styles.setRow,
-                          set.completed && styles.setRowCompleted,
-                        ]}
-                      >
-                        <View style={styles.setNumberContainer}>
-                          <View style={[
-                            styles.setNumber,
-                            set.completed && styles.setNumberDone,
-                          ]}>
-                            <Text style={[
-                              styles.setNumberText,
-                              set.completed && styles.setNumberTextActive,
-                            ]}>
-                              {set.number}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {set.number === 2 && !set.completed ? (
-                          <>
-                            <View style={styles.inputContainer}>
-                              <TextInput
-                                style={styles.setInput}
-                                value={set.weight.toString()}
-                                keyboardType="number-pad"
-                              />
-                            </View>
-                            <View style={styles.inputContainer}>
-                              <TextInput
-                                style={styles.setInput}
-                                value={set.reps.toString()}
-                                keyboardType="number-pad"
-                              />
-                            </View>
-                            <View style={styles.setActionContainer}>
-                              <TouchableOpacity
-                                style={styles.doneButton}
-                                onPress={() => handleCompleteSet(exercise.id, set.number)}
-                              >
-                                <Text style={styles.doneButtonText}>FEITO</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        ) : (
-                          <>
-                            <Text style={[styles.setValue, set.completed && styles.setValueDone]}>
-                              {set.weight}
-                            </Text>
-                            <Text style={[styles.setValue, set.completed && styles.setValueDone]}>
-                              {set.reps}
-                            </Text>
-                            <View style={styles.setActionContainer}>
-                              <TouchableOpacity
-                                style={[
-                                  styles.checkButton,
-                                  set.completed && styles.checkButtonDone,
-                                ]}
-                                disabled={set.completed}
-                              >
-                                <MaterialIcons
-                                  name={set.completed ? 'check' : 'check-box-outline-blank'}
-                                  size={20}
-                                  color={set.completed ? '#13ec5b' : '#666'}
-                                />
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              ) : (
-                // Pending Exercise Card
-                <TouchableOpacity style={styles.pendingExerciseCard}>
+          {exercises.map((exercise, idx) => {
+            const isCompleted = exercise.sets_data.every(s => s.completed);
+            console.log(`🏋️ Renderizando exercício ${idx + 1}/${exercises.length}: ${exercise.name} - Ativo: ${exercise.isActive}, Completo: ${isCompleted}`);
+            
+            return (
+              <View 
+                key={exercise.id}
+                style={[
+                  styles.exerciseCard,
+                  exercise.isActive && styles.activeExerciseCardBorder,
+                  isCompleted && styles.completedExerciseCard,
+                ]}
+              >
+                {exercise.isActive && <View style={styles.activeIndicator} />}
+                
+                {/* Cabeçalho do Exercício */}
+                <TouchableOpacity 
+                  style={styles.exerciseCardHeader}
+                  onPress={() => {
+                    console.log('Exercício clicado:', exercise.name);
+                  }}
+                >
                   <View style={styles.pendingImageContainer}>
                     {exercise.image ? (
                       <Image 
@@ -387,12 +274,21 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
                         resizeMode="cover"
                       />
                     ) : (
-                      <MaterialIcons name="fitness-center" size={32} color="#666" />
+                      <MaterialIcons 
+                        name="fitness-center" 
+                        size={32} 
+                        color={isCompleted ? "#666" : exercise.isActive ? "#13ec5b" : "#666"} 
+                      />
                     )}
                   </View>
                   
                   <View style={styles.pendingInfo}>
-                    <Text style={styles.pendingName}>{exercise.name}</Text>
+                    <Text style={[
+                      styles.pendingName,
+                      isCompleted && styles.completedText
+                    ]}>
+                      {exercise.name}
+                    </Text>
                     <View style={styles.pendingMeta}>
                       <View style={styles.pendingBadge}>
                         <Text style={styles.pendingBadgeText}>{exercise.sets} Séries</Text>
@@ -400,16 +296,152 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
                       <View style={styles.pendingBadge}>
                         <Text style={styles.pendingBadgeText}>{exercise.reps} Reps</Text>
                       </View>
+                      {exercise.carga && (
+                        <View style={styles.pendingBadge}>
+                          <Text style={styles.pendingBadgeText}>{exercise.carga}</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   
                   <View style={styles.playButton}>
-                    <MaterialIcons name="play-arrow" size={24} color="#666" />
+                    {isCompleted ? (
+                      <MaterialIcons name="check-circle" size={24} color="#13ec5b" />
+                    ) : exercise.isActive ? (
+                      <MaterialIcons name="play-arrow" size={24} color="#13ec5b" />
+                    ) : (
+                      <MaterialIcons name="play-arrow" size={24} color="#666" />
+                    )}
                   </View>
                 </TouchableOpacity>
-              )}
-            </View>
-          ))}
+
+                {/* Tabela de Sets - Somente para exercício ativo */}
+                {exercise.isActive && (
+                  <View style={styles.setsContainer}>
+                    <View style={styles.setsHeader}>
+                      <Text style={[styles.setsHeaderText, {flex: 1}]}>SET</Text>
+                      <Text style={[styles.setsHeaderText, {flex: 1.5}]}>KG</Text>
+                      <Text style={[styles.setsHeaderText, {flex: 1.5}]}>REPS</Text>
+                      <Text style={[styles.setsHeaderText, {flex: 2}]}>STATUS</Text>
+                    </View>
+
+                    {exercise.sets_data.map((set, index) => {
+                      const isCurrentSet = !set.completed && 
+                        exercise.sets_data.slice(0, index).every(s => s.completed);
+                      
+                      return (
+                        <View
+                          key={set.number}
+                          style={[
+                            styles.setRow,
+                            set.completed && styles.setRowCompleted,
+                            isCurrentSet && styles.setRowCurrent,
+                          ]}
+                        >
+                          <View style={styles.setNumberContainer}>
+                            <View style={[
+                              styles.setNumber,
+                              isCurrentSet && styles.setNumberActive,
+                              set.completed && styles.setNumberDone,
+                            ]}>
+                              <Text style={[
+                                styles.setNumberText,
+                                (isCurrentSet || set.completed) && styles.setNumberTextActive,
+                              ]}>
+                                {set.number}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {isCurrentSet ? (
+                            <>
+                              <View style={styles.inputContainer}>
+                                <TextInput
+                                  style={styles.setInput}
+                                  value={set.weight.toString()}
+                                  keyboardType="number-pad"
+                                  onChangeText={(text) => {
+                                    setExercises(prev =>
+                                      prev.map(ex => {
+                                        if (ex.id === exercise.id) {
+                                          return {
+                                            ...ex,
+                                            sets_data: ex.sets_data.map(s =>
+                                              s.number === set.number ? {...s, weight: text} : s
+                                            ),
+                                          };
+                                        }
+                                        return ex;
+                                      })
+                                    );
+                                  }}
+                                />
+                              </View>
+                              <View style={styles.inputContainer}>
+                                <TextInput
+                                  style={styles.setInput}
+                                  value={set.reps.toString()}
+                                  keyboardType="number-pad"
+                                  onChangeText={(text) => {
+                                    setExercises(prev =>
+                                      prev.map(ex => {
+                                        if (ex.id === exercise.id) {
+                                          return {
+                                            ...ex,
+                                            sets_data: ex.sets_data.map(s =>
+                                              s.number === set.number ? {...s, reps: parseInt(text) || 0} : s
+                                            ),
+                                          };
+                                        }
+                                        return ex;
+                                      })
+                                    );
+                                  }}
+                                />
+                              </View>
+                              <View style={styles.setActionContainer}>
+                                <TouchableOpacity
+                                  style={styles.doneButton}
+                                  onPress={() => handleCompleteSet(exercise.id, set.number)}
+                                >
+                                  <Text style={styles.doneButtonText}>FEITO</Text>
+                                </TouchableOpacity>
+                              </View>
+                            </>
+                          ) : (
+                            <>
+                              <Text style={[styles.setValue, set.completed && styles.setValueDone]}>
+                                {set.weight}
+                              </Text>
+                              <Text style={[styles.setValue, set.completed && styles.setValueDone]}>
+                                {set.reps}
+                              </Text>
+                              <View style={styles.setActionContainer}>
+                                <TouchableOpacity
+                                  style={[
+                                    styles.checkButton,
+                                    set.completed && styles.checkButtonDone,
+                                  ]}
+                                  disabled={set.completed}
+                                  onPress={() => handleCompleteSet(exercise.id, set.number)}
+                                >
+                                  <MaterialIcons
+                                    name={set.completed ? 'check' : 'check-box-outline-blank'}
+                                    size={20}
+                                    color={set.completed ? '#13ec5b' : '#666'}
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                            </>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <View style={{height: 120}} />
@@ -651,6 +683,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 16,
   },
+  exerciseCard: {
+    borderRadius: 16,
+    backgroundColor: '#1a3322',
+    marginBottom: 16,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  exerciseCardHeader: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 16,
+    alignItems: 'center',
+  },
   activeExerciseCard: {
     borderRadius: 16,
     backgroundColor: '#1a3322',
@@ -873,6 +918,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a3322',
     alignItems: 'center',
     marginBottom: 16,
+    position: 'relative',
+  },
+  activeExerciseCardBorder: {
+    borderWidth: 2,
+    borderColor: '#13ec5b',
+  },
+  completedExerciseCard: {
+    opacity: 0.6,
+  },
+  completedText: {
+    textDecorationLine: 'line-through',
+    color: '#666',
   },
   pendingImageContainer: {
     width: 64,
