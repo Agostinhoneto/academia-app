@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -8,13 +8,17 @@ import {
   Image,
   Switch,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
+import {useAuth} from '../contexts/AuthContext';
 
 export default function ProfileScreen({navigation}: any) {
+  const {user, aluno, logout} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -25,10 +29,19 @@ export default function ProfileScreen({navigation}: any) {
         {
           text: 'Sair',
           style: 'destructive',
-          onPress: () => navigation.replace('Login'),
+          onPress: async () => {
+            await logout();
+            navigation.replace('Login');
+          },
         },
       ],
     );
+  };
+
+  // Pegar iniciais do nome para o avatar
+  const getInitials = (name?: string) => {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
   };
 
   return (
@@ -55,10 +68,16 @@ export default function ProfileScreen({navigation}: any) {
               start={{x: 0, y: 0}}
               end={{x: 1, y: 1}}
               style={styles.profileImageBorder}>
-              <Image
-                source={{uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAyy9mkKnhBhSg0A5ggYaQMs3RhqdXzTlDAkNaYi1MZRwZDgpnlEUyyUdBbAJ7Zk7cAUSgfLssMQXILIOEN58o8XImqgOM-L0Z5aGGIdIWJ5SKm1pAwxwaAZzRnNC3hxuYV_hB8ih7XXbYVXG5UZbpmAw0qTce4zyunyQ53bx1D0Dn51xDt4KYcwyQ0jN2ZlEyqpPt6Q4RmjLKSEkljWrW7Z5SM6kIPv443-1kb7AAg-19OJdRuK1q8tTJ31HFdH9fI-lOSlFcdBA0'}}
-                style={styles.profileImage}
-              />
+              {user?.avatar ? (
+                <Image
+                  source={{uri: user.avatar}}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarInitials}>{getInitials(aluno?.nome || user?.name)}</Text>
+                </View>
+              )}
             </LinearGradient>
             <View style={styles.editBadge}>
               <MaterialIcons name="edit" size={14} color="#102216" />
@@ -66,10 +85,10 @@ export default function ProfileScreen({navigation}: any) {
           </TouchableOpacity>
 
           {/* Profile Info */}
-          <Text style={styles.profileName}>Carlos Silva</Text>
+          <Text style={styles.profileName}>{aluno?.nome || user?.name || 'Usuário'}</Text>
           <View style={styles.memberBadge}>
             <MaterialIcons name="workspace-premium" size={16} color="#13ec5b" />
-            <Text style={styles.memberBadgeText}>Membro Gold</Text>
+            <Text style={styles.memberBadgeText}>Membro {aluno?.status === 'ativo' ? 'Ativo' : 'Gold'}</Text>
           </View>
 
           {/* Edit Profile Button */}
@@ -289,6 +308,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 60,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
+    backgroundColor: '#13ec5b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarInitials: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#102216',
   },
   editBadge: {
     position: 'absolute',
