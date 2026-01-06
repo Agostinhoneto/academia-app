@@ -66,14 +66,25 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
       if (data.exercicios && data.exercicios.length > 0) {
         console.log(`✅ ${data.exercicios.length} exercícios encontrados`);
         const mappedExercises: Exercise[] = data.exercicios.map((ex: any, index) => {
-          console.log(`🖼️ Exercício ${ex.nome}: imagem API =`, ex.imagem);
-          const imageUrl = getExerciseImage(ex.nome, ex.imagem);
-          console.log(`📸 URL final da imagem para ${ex.nome}:`, imageUrl);
+          // Usar imagem_url ou imagem_complete da API (já vem com URL completa)
+          let imageUrl = ex.imagem_url || ex.imagem_complete;
           
-          // Os dados de séries/reps/carga estão no pivot
-          const series = ex.pivot?.series || 3;
-          const repeticoes = ex.pivot?.repeticoes?.toString() || '10';
-          const carga = ex.pivot?.carga?.toString() || '0';
+          // Substituir localhost pelo IP correto no iOS/Android
+          if (imageUrl && imageUrl.includes('localhost')) {
+            imageUrl = imageUrl.replace('localhost', '192.168.1.222');
+          }
+          
+          // Se não vier imagem da API, tenta pegar do mapeamento local
+          if (!imageUrl) {
+            imageUrl = getExerciseImage(ex.nome);
+          }
+          
+          console.log(`🖼️ Exercício ${ex.nome}: URL da imagem =`, imageUrl);
+          
+          // Os dados de séries/reps/carga estão diretos (não mais no pivot)
+          const series = ex.series || ex.pivot?.series || 3;
+          const repeticoes = ex.repeticoes?.toString() || ex.pivot?.repeticoes?.toString() || '10';
+          const carga = ex.carga?.toString() || ex.pivot?.carga?.toString() || '0';
           
           return {
             id: ex.id,
