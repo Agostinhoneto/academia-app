@@ -55,7 +55,15 @@ export default function WorkoutsScreen({navigation}: any) {
       
       // Calcular estatísticas
       const totalDisponiveis = treinosFinais.length;
-      const totalCompletos = treinosFinais.filter(t => t.feitoHoje).length;
+      
+      // Contar quantas DIVISÕES foram completadas hoje (não treinos completos)
+      const historico = await treinoHistoricoService.getHistorico();
+      const hoje = treinoHistoricoService.getDataAtual();
+      const divisoesHoje = historico.filter(exec => {
+        const dataExec = treinoHistoricoService.getDataFromISO(exec.dataHora);
+        return dataExec === hoje && exec.concluido;
+      });
+      const totalCompletos = divisoesHoje.length;
       
       // Calcular sequência (dias consecutivos treinando)
       const sequenciaAtual = await treinoHistoricoService.getSequenciaConsecutiva();

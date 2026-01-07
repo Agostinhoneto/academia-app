@@ -44,10 +44,14 @@ export default function HomeScreen({navigation}: any) {
       // Calcular estatísticas
       const totalDisponiveis = treinosData.length;
       
-      // Verificar quantos treinos foram completos hoje
-      const statusPromises = treinosData.map(t => treinoHistoricoService.foiFeitoHoje(t.id));
-      const statusResults = await Promise.all(statusPromises);
-      const totalCompletos = statusResults.filter(Boolean).length;
+      // Contar quantas DIVISÕES foram completadas hoje (não treinos completos)
+      const historico = await treinoHistoricoService.getHistorico();
+      const hoje = treinoHistoricoService.getDataAtual();
+      const divisoesHoje = historico.filter(exec => {
+        const dataExec = treinoHistoricoService.getDataFromISO(exec.dataHora);
+        return dataExec === hoje && exec.concluido;
+      });
+      const totalCompletos = divisoesHoje.length;
       
       // Calcular sequência (dias consecutivos treinando)
       const sequenciaAtual = await treinoHistoricoService.getSequenciaConsecutiva();
