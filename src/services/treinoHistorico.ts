@@ -115,6 +115,31 @@ export const treinoHistoricoService = {
   },
 
   /**
+   * Determina o próximo treino a ser feito (considera os já feitos hoje)
+   */
+  async getProximoTreinoDisponivel(treinos: any[]): Promise<number | null> {
+    if (!treinos || treinos.length === 0) return null;
+
+    // Filtrar treinos não feitos hoje
+    const treinosDisponiveis = [];
+    for (const treino of treinos) {
+      const feitoHoje = await this.foiFeitoHoje(treino.id);
+      if (!feitoHoje) {
+        treinosDisponiveis.push(treino);
+      }
+    }
+
+    if (treinosDisponiveis.length === 0) {
+      console.log('✅ Todos os treinos foram feitos hoje!');
+      return null;
+    }
+
+    // Retorna o treino do dia ou o primeiro disponível
+    const treinoDoDia = this.getTreinoDoDia(treinosDisponiveis);
+    return treinoDoDia;
+  },
+
+  /**
    * Limpa o histórico (útil para testes ou reset)
    */
   async limparHistorico(): Promise<void> {
@@ -131,6 +156,11 @@ export const treinoHistoricoService = {
    * Retorna o ID do treino que deveria ser feito hoje
    */
   getTreinoDoDia(treinos: any[]): number | null {
+    if (!treinos || treinos.length === 0) {
+      console.log('⚠️ Nenhum treino disponível');
+      return null;
+    }
+
     const diasSemana = [
       'Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'
     ];
@@ -142,7 +172,7 @@ export const treinoHistoricoService = {
     
     // Procura um treino que corresponda ao dia de hoje
     const treinoDoDia = treinos.find(treino => 
-      treino.dia_semana?.nome === diaSemanaHoje
+      treino.dia_semana?.nome && treino.dia_semana.nome === diaSemanaHoje
     );
     
     if (treinoDoDia) {
@@ -150,7 +180,16 @@ export const treinoHistoricoService = {
       return treinoDoDia.id;
     }
     
-    console.log('⚠️ Nenhum treino programado para hoje');
+    // FALLBACK: Se não há treino para hoje, retorna o próximo treino não feito
+    console.log('⚠️ Nenhum treino programado especificamente para hoje');
+    console.log('🔄 Procurando próximo treino disponível...');
+    
+    // Retorna o primeiro treino como sugestão
+    if (treinos.length > 0) {
+      console.log(`💡 Sugerindo treino: ${treinos[0].nome}`);
+      return treinos[0].id;
+    }
+    
     return null;
   },
 };

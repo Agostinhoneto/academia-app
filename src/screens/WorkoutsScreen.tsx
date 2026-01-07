@@ -22,8 +22,6 @@ export default function WorkoutsScreen({navigation}: any) {
       const data = await treinoService.getTreinos();
       
       // Enriquecer treinos com informações de status
-      const treinoDoDiaId = treinoHistoricoService.getTreinoDoDia(data);
-      
       const treinosComStatus = await Promise.all(
         data.map(async (treino) => {
           const feitoHoje = await treinoHistoricoService.foiFeitoHoje(treino.id);
@@ -32,13 +30,28 @@ export default function WorkoutsScreen({navigation}: any) {
           return {
             ...treino,
             feitoHoje,
-            ehTreinoDoDia: treino.id === treinoDoDiaId,
+            ehTreinoDoDia: false, // Será definido depois
             ultimaExecucao: ultimaExec?.dataHora,
           };
         })
       );
       
-      setTreinos(treinosComStatus);
+      // Determinar qual é o treino do dia considerando os já feitos
+      const treinoDoDiaId = await treinoHistoricoService.getProximoTreinoDisponivel(treinosComStatus);
+      
+      // Atualizar flag ehTreinoDoDia
+      const treinosFinais = treinosComStatus.map(treino => ({
+        ...treino,
+        ehTreinoDoDia: treino.id === treinoDoDiaId && !treino.feitoHoje,
+      }));
+      
+      setTreinos(treinosFinais);
+      
+      // Verificar se todos foram feitos hoje
+      const todosFeitosHoje = treinosFinais.every(t => t.feitoHoje);
+      if (todosFeitosHoje && treinosFinais.length > 0) {
+        console.log('🎉 Todos os treinos foram completados hoje!');
+      }
     } catch (error) {
       console.error('Erro ao carregar treinos:', error);
     } finally {
@@ -65,9 +78,13 @@ export default function WorkoutsScreen({navigation}: any) {
 
     // Avisar se não é o treino do dia
     if (!treino.ehTreinoDoDia) {
+      const mensagem = treino.dia_semana?.nome 
+        ? `Este treino está programado para ${treino.dia_semana.nome}. Deseja fazer mesmo assim?`
+        : 'Este não é o treino sugerido para hoje. Deseja continuar mesmo assim?';
+        
       Alert.alert(
         'Atenção',
-        `Este não é o treino programado para hoje. Deseja continuar mesmo assim?`,
+        mensagem,
         [
           {text: 'Cancelar', style: 'cancel'},
           {

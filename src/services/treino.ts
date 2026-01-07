@@ -33,6 +33,14 @@ export interface ExercicioTreino {
   video_url?: string;
   imagem?: string;
   tipo?: string;
+  divisao?: string; // A, B, C, etc
+  series?: number;
+  repeticoes?: number;
+  carga?: number;
+  grupo_muscular?: {
+    id: number;
+    nome: string;
+  };
   pivot?: {
     treino_id: number;
     exercicio_id: number;
