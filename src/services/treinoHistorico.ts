@@ -99,22 +99,43 @@ export const treinoHistoricoService = {
   },
 
   /**
-   * Determina a próxima divisão a ser feita (considerando as já feitas hoje)
+   * Determina a próxima divisão a ser feita (baseado na última divisão completada, independente do dia)
    */
   async getProximaDivisao(treinoId: number, divisoesDisponiveis: string[]): Promise<string | null> {
     try {
-      const divisoesFeitas = await this.getDivisoesFeitasHoje(treinoId);
-      
-      // Encontrar primeira divisão não feita
-      const proximaDivisao = divisoesDisponiveis.find(div => !divisoesFeitas.includes(div));
-      
-      if (proximaDivisao) {
-        console.log(`🎯 Próxima divisão do treino ${treinoId}: ${proximaDivisao}`);
-      } else {
-        console.log(`✅ Todas as divisões do treino ${treinoId} foram completadas hoje`);
+      if (!divisoesDisponiveis || divisoesDisponiveis.length === 0) {
+        return null;
       }
       
-      return proximaDivisao || null;
+      // Buscar última execução deste treino (independente do dia)
+      const historico = await this.getHistorico();
+      const execucoesTreino = historico
+        .filter(exec => exec.treinoId === treinoId && exec.concluido)
+        .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime());
+      
+      if (execucoesTreino.length === 0) {
+        // Nunca fez nenhuma divisão, começa pela primeira
+        console.log(`🎯 Começando pelo início: ${divisoesDisponiveis[0]}`);
+        return divisoesDisponiveis[0];
+      }
+      
+      // Pegar a última divisão feita
+      const ultimaDivisaoFeita = execucoesTreino[0].divisao;
+      console.log(`🔍 Última divisão feita foi: ${ultimaDivisaoFeita}`);
+      
+      // Encontrar próxima divisão na sequência
+      const indexAtual = divisoesDisponiveis.indexOf(ultimaDivisaoFeita);
+      
+      if (indexAtual === -1 || indexAtual === divisoesDisponiveis.length - 1) {
+        // Se não encontrou ou é a última, volta para a primeira
+        console.log(`🔄 Voltando para o início: ${divisoesDisponiveis[0]}`);
+        return divisoesDisponiveis[0];
+      }
+      
+      // Retorna a próxima divisão
+      const proximaDivisao = divisoesDisponiveis[indexAtual + 1];
+      console.log(`➡️ Próxima divisão: ${proximaDivisao}`);
+      return proximaDivisao;
     } catch (error) {
       console.error('❌ Erro ao determinar próxima divisão:', error);
       return divisoesDisponiveis[0] || null;

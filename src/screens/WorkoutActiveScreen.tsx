@@ -151,19 +151,6 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
                 isActive: ex.id === exerciciosDaDivisao[0].id
               })));
             }
-          } else {
-            // Todas divisões foram feitas hoje
-            console.log('✅ Todas as divisões foram completadas hoje!');
-            Alert.alert(
-              'Treino Completo! 🎉',
-              'Você já completou todas as divisões deste treino hoje. Volte amanhã para fazer novamente!',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => navigation.goBack()
-                }
-              ]
-            );
           }
         }
       } else {
