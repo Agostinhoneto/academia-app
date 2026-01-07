@@ -129,6 +129,43 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
         // Log das divisões encontradas
         const divisoes = [...new Set(mappedExercises.map(e => e.divisao))];
         console.log('📊 Divisões encontradas:', divisoes.join(', '));
+        
+        // 🎯 DETECTAR QUAL DIVISÃO CARREGAR
+        const divisoesDisponiveis = divisoes.filter(Boolean).sort() as string[];
+        
+        if (divisoesDisponiveis.length > 0) {
+          const proximaDivisao = await treinoHistoricoService.getProximaDivisao(
+            treinoId,
+            divisoesDisponiveis
+          );
+          
+          if (proximaDivisao) {
+            console.log(`🎯 Carregando divisão: ${proximaDivisao}`);
+            setDivisaoAtual(proximaDivisao);
+            
+            // Ativar primeiro exercício da divisão carregada
+            const exerciciosDaDivisao = mappedExercises.filter(e => e.divisao === proximaDivisao);
+            if (exerciciosDaDivisao.length > 0) {
+              setExercises(prev => prev.map(ex => ({
+                ...ex,
+                isActive: ex.id === exerciciosDaDivisao[0].id
+              })));
+            }
+          } else {
+            // Todas divisões foram feitas hoje
+            console.log('✅ Todas as divisões foram completadas hoje!');
+            Alert.alert(
+              'Treino Completo! 🎉',
+              'Você já completou todas as divisões deste treino hoje. Volte amanhã para fazer novamente!',
+              [
+                {
+                  text: 'OK',
+                  onPress: () => navigation.goBack()
+                }
+              ]
+            );
+          }
+        }
       } else {
         console.log('⚠️ Nenhum exercício encontrado no treino');
       }
@@ -219,7 +256,7 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
     : null;
 
   async function handleFinalizarTreino() {
-    console.log('✅ Confirmado - iniciando finalização');
+    console.log('✅ Confirmado - iniciando finalização da divisão:', divisaoAtual);
     console.log('🔍 TreinoId:', treinoId, 'Tipo:', typeof treinoId);
     
     if (!treinoId) {
@@ -234,9 +271,9 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
       const id = typeof treinoId === 'string' ? parseInt(treinoId) : treinoId;
       console.log('🔢 ID convertido:', id);
       
-      // Salvar execução no histórico local
-      await treinoHistoricoService.salvarExecucao(id);
-      console.log('✅ Execução salva no histórico local');
+      // Salvar execução da divisão atual no histórico local
+      await treinoHistoricoService.salvarExecucao(id, divisaoAtual);
+      console.log(`✅ Divisão ${divisaoAtual} salva no histórico local`);
       
       // Tentar enviar para API
       try {
@@ -250,12 +287,12 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
       setFinalizando(false);
       
       if (Platform.OS === 'web') {
-        window.alert('Treino Concluído! 🎉\n\nParabéns! Você completou o treino de hoje.');
+        window.alert(`Divisão ${divisaoAtual} Concluída! 🎉\n\nParabéns! Continue assim.`);
         navigation.goBack();
       } else {
         Alert.alert(
-          'Treino Concluído! 🎉',
-          'Parabéns! Você completou o treino de hoje.',
+          `Divisão ${divisaoAtual} Concluída! 🎉`,
+          'Parabéns! Continue assim.',
           [
             {
               text: 'OK',
@@ -627,23 +664,27 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </TouchableOpacity>
         
+        {/* Botão Finalizar - sempre visível, salva divisão atual e volta */}
         <TouchableOpacity 
-          style={[styles.finishButton, finalizando && styles.finishButtonDisabled]}
+          style={[
+            styles.finishButton,
+            (!divisaoCompletada || finalizando) && styles.finishButtonDisabled
+          ]}
           activeOpacity={0.7}
-          disabled={finalizando}
+          disabled={!divisaoCompletada || finalizando}
           onPress={() => {
             console.log('🟢 BOTÃO FINALIZAR CLICADO!');
             
             // Suporte para Web e Mobile
             if (Platform.OS === 'web') {
-              const confirmar = window.confirm('Deseja realmente finalizar seu treino?');
+              const confirmar = window.confirm(`Deseja finalizar a Divisão ${divisaoAtual}?`);
               if (confirmar) {
                 handleFinalizarTreino();
               }
             } else {
               Alert.alert(
-                'Finalizar Treino',
-                'Deseja realmente finalizar seu treino?',
+                `Finalizar Divisão ${divisaoAtual}`,
+                'Deseja salvar e concluir esta divisão?',
                 [
                   {
                     text: 'Cancelar',
@@ -659,7 +700,7 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           }}>
           <MaterialIcons name="flag" size={24} color="#102216" />
           <Text style={styles.finishButtonText}>
-            {finalizando ? 'Finalizando...' : 'Finalizar Treino'}
+            {finalizando ? 'Finalizando...' : divisaoCompletada ? 'Finalizar Treino' : 'Complete todos os exercícios'}
           </Text>
         </TouchableOpacity>
       </View>

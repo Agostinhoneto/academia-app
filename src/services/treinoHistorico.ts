@@ -4,22 +4,24 @@ const HISTORICO_KEY = '@academia:treino_historico';
 
 export interface TreinoExecucao {
   treinoId: number;
+  divisao: string; // A, B, C, etc
   dataHora: string; // ISO string
   concluido: boolean;
 }
 
 export const treinoHistoricoService = {
   /**
-   * Salva a execução de um treino
+   * Salva a execução de uma divisão de um treino
    */
-  async salvarExecucao(treinoId: number): Promise<void> {
+  async salvarExecucao(treinoId: number, divisao: string): Promise<void> {
     try {
-      console.log('📝 Iniciando salvamento de execução para treino:', treinoId);
+      console.log(`📝 Salvando execução: Treino ${treinoId}, Divisão ${divisao}`);
       const historico = await this.getHistorico();
       console.log('📚 Histórico atual:', historico.length, 'execuções');
       
       const novaExecucao: TreinoExecucao = {
         treinoId,
+        divisao,
         dataHora: new Date().toISOString(),
         concluido: true,
       };
@@ -49,24 +51,88 @@ export const treinoHistoricoService = {
   },
 
   /**
-   * Verifica se um treino já foi feito HOJE (baseado em data, não em 24h)
+   * Verifica se uma divisão específica de um treino já foi feita HOJE
    */
-  async foiFeitoHoje(treinoId: number): Promise<boolean> {
+  async foiFeitoHoje(treinoId: number, divisao?: string): Promise<boolean> {
     try {
       const historico = await this.getHistorico();
       const hoje = this.getDataAtual();
       
       const feitoHoje = historico.some(exec => {
         if (exec.treinoId !== treinoId || !exec.concluido) return false;
+        if (divisao && exec.divisao !== divisao) return false;
         
         const dataExecucao = this.getDataFromISO(exec.dataHora);
         return dataExecucao === hoje;
       });
       
-      console.log(`🔍 Treino ${treinoId} foi feito hoje? ${feitoHoje}`);
+      console.log(`🔍 Treino ${treinoId} ${divisao ? `Divisão ${divisao}` : ''} foi feito hoje? ${feitoHoje}`);
       return feitoHoje;
     } catch (error) {
       console.error('❌ Erro ao verificar se foi feito hoje:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Retorna quais divisões de um treino foram feitas HOJE
+   */
+  async getDivisoesFeitasHoje(treinoId: number): Promise<string[]> {
+    try {
+      const historico = await this.getHistorico();
+      const hoje = this.getDataAtual();
+      
+      const divisoesFeitas = historico
+        .filter(exec => {
+          if (exec.treinoId !== treinoId || !exec.concluido) return false;
+          const dataExecucao = this.getDataFromISO(exec.dataHora);
+          return dataExecucao === hoje;
+        })
+        .map(exec => exec.divisao);
+      
+      console.log(`📊 Divisões feitas hoje do treino ${treinoId}:`, divisoesFeitas);
+      return divisoesFeitas;
+    } catch (error) {
+      console.error('❌ Erro ao buscar divisões feitas:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Determina a próxima divisão a ser feita (considerando as já feitas hoje)
+   */
+  async getProximaDivisao(treinoId: number, divisoesDisponiveis: string[]): Promise<string | null> {
+    try {
+      const divisoesFeitas = await this.getDivisoesFeitasHoje(treinoId);
+      
+      // Encontrar primeira divisão não feita
+      const proximaDivisao = divisoesDisponiveis.find(div => !divisoesFeitas.includes(div));
+      
+      if (proximaDivisao) {
+        console.log(`🎯 Próxima divisão do treino ${treinoId}: ${proximaDivisao}`);
+      } else {
+        console.log(`✅ Todas as divisões do treino ${treinoId} foram completadas hoje`);
+      }
+      
+      return proximaDivisao || null;
+    } catch (error) {
+      console.error('❌ Erro ao determinar próxima divisão:', error);
+      return divisoesDisponiveis[0] || null;
+    }
+  },
+
+  /**
+   * Verifica se TODAS as divisões de um treino foram feitas hoje
+   */
+  async todasDivisoesFeitas(treinoId: number, divisoesDisponiveis: string[]): Promise<boolean> {
+    try {
+      const divisoesFeitas = await this.getDivisoesFeitasHoje(treinoId);
+      const todasFeitas = divisoesDisponiveis.every(div => divisoesFeitas.includes(div));
+      
+      console.log(`🏁 Todas divisões do treino ${treinoId} feitas hoje? ${todasFeitas}`);
+      return todasFeitas;
+    } catch (error) {
+      console.error('❌ Erro ao verificar divisões completas:', error);
       return false;
     }
   },
