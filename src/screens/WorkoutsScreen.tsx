@@ -11,6 +11,12 @@ export default function WorkoutsScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [stats, setStats] = useState({
+    totalDisponiveis: 0,
+    totalCompletos: 0,
+    sequenciaAtual: 0,
+    tempoTotal: 0,
+  });
 
   useEffect(() => {
     loadTreinos();
@@ -46,6 +52,23 @@ export default function WorkoutsScreen({navigation}: any) {
       }));
       
       setTreinos(treinosFinais);
+      
+      // Calcular estatísticas
+      const totalDisponiveis = treinosFinais.length;
+      const totalCompletos = treinosFinais.filter(t => t.feitoHoje).length;
+      
+      // Calcular sequência (dias consecutivos treinando)
+      const sequenciaAtual = await treinoHistoricoService.getSequenciaConsecutiva();
+      
+      // Calcular tempo total de treinos (em minutos)
+      const tempoTotal = await treinoHistoricoService.getTempoTotalTreinos();
+      
+      setStats({
+        totalDisponiveis,
+        totalCompletos,
+        sequenciaAtual,
+        tempoTotal,
+      });
       
       // Verificar se todos foram feitos hoje
       const todosFeitosHoje = treinosFinais.every(t => t.feitoHoje);
@@ -137,6 +160,33 @@ export default function WorkoutsScreen({navigation}: any) {
           </View>
         ) : (
           <>
+            {/* Stats Card */}
+            <View style={styles.statsCard}>
+              <Text style={styles.statsTitle}>Resumo do Dia</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalDisponiveis}</Text>
+                  <Text style={styles.statLabel}>Treinos{"\n"}Disponíveis</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="check-circle" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalCompletos}</Text>
+                  <Text style={styles.statLabel}>Completos{"\n"}Hoje</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="local-fire-department" size={24} color="#ff6b35" />
+                  <Text style={styles.statValue}>{stats.sequenciaAtual}</Text>
+                  <Text style={styles.statLabel}>Dias{"\n"}Seguidos</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="schedule" size={24} color="#4a90e2" />
+                  <Text style={styles.statValue}>{Math.floor(stats.tempoTotal / 60)}h</Text>
+                  <Text style={styles.statLabel}>Tempo{"\n"}Total</Text>
+                </View>
+              </View>
+            </View>
+            
             {/* Category Filters */}
             {categories.length > 1 && (
               <ScrollView 
@@ -274,6 +324,9 @@ export default function WorkoutsScreen({navigation}: any) {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#102216',
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -304,9 +357,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-    flex: 1,
-    backgroundColor: '#102216',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -333,6 +383,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 80,
+  },
   scrollCDescription: {
     fontSize: 13,
     color: '#92c9a4',
@@ -340,6 +393,42 @@ const styles = StyleSheet.create({
   },
   workoutontent: {
     paddingBottom: 100,
+  },
+  statsCard: {
+    backgroundColor: '#1a1f1e',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2a2f2e',
+  },
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#888',
+    marginTop: 2,
+    textAlign: 'center',
   },
   categoriesScroll: {
     marginVertical: 16,
@@ -457,6 +546,11 @@ const styles = StyleSheet.create({
   workoutNameCompleto: {
     color: '#666',
     textDecorationLine: 'line-through',
+  },
+  workoutDescription: {
+    fontSize: 13,
+    color: '#92c9a4',
+    lineHeight: 18,
   },
   workoutMeta: {
     flexDirection: 'row',

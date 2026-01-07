@@ -258,4 +258,67 @@ export const treinoHistoricoService = {
     
     return null;
   },
+
+  /**
+   * Calcula sequência de dias consecutivos treinando
+   */
+  async getSequenciaConsecutiva(): Promise<number> {
+    try {
+      const historico = await this.getHistorico();
+      if (historico.length === 0) return 0;
+
+      // Ordenar por data decrescente
+      const execucoes = historico
+        .filter(exec => exec.concluido)
+        .sort((a, b) => new Date(b.dataHora).getTime() - new Date(a.dataHora).getTime());
+
+      if (execucoes.length === 0) return 0;
+
+      // Obter datas únicas
+      const datasUnicas = [...new Set(execucoes.map(e => this.getDataFromISO(e.dataHora)))];
+      
+      const hoje = this.getDataAtual();
+      let sequencia = 0;
+      
+      // Verificar se treinou hoje
+      if (datasUnicas[0] === hoje) {
+        sequencia = 1;
+        
+        // Contar dias anteriores consecutivos
+        for (let i = 1; i < datasUnicas.length; i++) {
+          const dataAnterior = new Date(hoje);
+          dataAnterior.setDate(dataAnterior.getDate() - i);
+          const dataEsperada = this.formatarData(dataAnterior);
+          
+          if (datasUnicas[i] === dataEsperada) {
+            sequencia++;
+          } else {
+            break;
+          }
+        }
+      }
+      
+      return sequencia;
+    } catch (error) {
+      console.error('❌ Erro ao calcular sequência:', error);
+      return 0;
+    }
+  },
+
+  /**
+   * Calcula tempo total de treinos em minutos
+   */
+  async getTempoTotalTreinos(): Promise<number> {
+    try {
+      const historico = await this.getHistorico();
+      
+      // Estimar 45 minutos por treino concluído
+      const treinosConcluidos = historico.filter(exec => exec.concluido).length;
+      return treinosConcluidos * 45;
+    } catch (error) {
+      console.error('❌ Erro ao calcular tempo total:', error);
+      return 0;
+    }
+  },
 };
+

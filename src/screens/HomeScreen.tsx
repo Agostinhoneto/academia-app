@@ -6,6 +6,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import {useAuth} from '../contexts/AuthContext';
 import {treinoService, Treino} from '../services/treino';
 import {mensalidadeService} from '../services/mensalidade';
+import {treinoHistoricoService} from '../services/treinoHistorico';
 
 export default function HomeScreen({navigation}: any) {
   const {user, aluno} = useAuth();
@@ -13,6 +14,12 @@ export default function HomeScreen({navigation}: any) {
   const [proximaMensalidade, setProximaMensalidade] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState({
+    totalDisponiveis: 0,
+    totalCompletos: 0,
+    sequenciaAtual: 0,
+    tempoTotal: 0,
+  });
 
   const currentDate = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -33,6 +40,27 @@ export default function HomeScreen({navigation}: any) {
       ]);
       setTreinos(treinosData);
       setProximaMensalidade(mensalidadeData);
+      
+      // Calcular estatísticas
+      const totalDisponiveis = treinosData.length;
+      
+      // Verificar quantos treinos foram completos hoje
+      const statusPromises = treinosData.map(t => treinoHistoricoService.foiFeitoHoje(t.id));
+      const statusResults = await Promise.all(statusPromises);
+      const totalCompletos = statusResults.filter(Boolean).length;
+      
+      // Calcular sequência (dias consecutivos treinando)
+      const sequenciaAtual = await treinoHistoricoService.getSequenciaConsecutiva();
+      
+      // Calcular tempo total de treinos (em minutos)
+      const tempoTotal = await treinoHistoricoService.getTempoTotalTreinos();
+      
+      setStats({
+        totalDisponiveis,
+        totalCompletos,
+        sequenciaAtual,
+        tempoTotal,
+      });
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -77,22 +105,30 @@ export default function HomeScreen({navigation}: any) {
           </View>
         ) : (
           <>
-            {/* Quick Stats */}
-            <View style={styles.quickStats}>
-              <View style={styles.quickStatItem}>
-                <MaterialIcons name="local-fire-department" size={24} color="#ff9500" />
-                <Text style={styles.quickStatValue}>-</Text>
-                <Text style={styles.quickStatLabel}>Dias Seq.</Text>
-              </View>
-              <View style={styles.quickStatItem}>
-                <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
-                <Text style={styles.quickStatValue}>{treinos.length}</Text>
-                <Text style={styles.quickStatLabel}>Treinos</Text>
-              </View>
-              <View style={styles.quickStatItem}>
-                <MaterialIcons name="timer" size={24} color="#007AFF" />
-                <Text style={styles.quickStatValue}>-</Text>
-                <Text style={styles.quickStatLabel}>Total</Text>
+            {/* Stats Card */}
+            <View style={styles.statsCard}>
+              <Text style={styles.statsTitle}>Resumo do Dia</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalDisponiveis}</Text>
+                  <Text style={styles.statLabel}>Treinos{"\n"}Disponíveis</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="check-circle" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalCompletos}</Text>
+                  <Text style={styles.statLabel}>Completos{"\n"}Hoje</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="local-fire-department" size={24} color="#ff6b35" />
+                  <Text style={styles.statValue}>{stats.sequenciaAtual}</Text>
+                  <Text style={styles.statLabel}>Dias{"\n"}Seguidos</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="schedule" size={24} color="#4a90e2" />
+                  <Text style={styles.statValue}>{Math.floor(stats.tempoTotal / 60)}h</Text>
+                  <Text style={styles.statLabel}>Tempo{"\n"}Total</Text>
+                </View>
               </View>
             </View>
 
@@ -273,29 +309,38 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
-  quickStats: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  quickStatItem: {
-    flex: 1,
-    backgroundColor: '#1a3322',
+  statsCard: {
+    backgroundColor: '#1a1f1e',
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
-    gap: 6,
+    marginBottom: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: '#2a2f2e',
   },
-  quickStatValue: {
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    marginTop: 4,
   },
-  quickStatLabel: {
-    fontSize: 11,
-    color: '#666',
+  statLabel: {
+    fontSize: 10,
+    color: '#888',
+    marginTop: 2,
     textAlign: 'center',
   },
   activeWorkoutCard: {
