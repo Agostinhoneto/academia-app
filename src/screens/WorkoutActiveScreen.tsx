@@ -9,10 +9,12 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {treinoService, Treino, ExercicioTreino} from '../services/treino';
+import {treinoHistoricoService} from '../services/treinoHistorico';
 import {getExerciseImage} from '../utils/exerciseImages';
 
 interface Set {
@@ -182,6 +184,68 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
   ).length;
   const totalExercises = exercises.length;
   const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+
+  async function handleFinalizarTreino() {
+    console.log('✅ Confirmado - iniciando finalização');
+    console.log('🔍 TreinoId:', treinoId, 'Tipo:', typeof treinoId);
+    
+    if (!treinoId) {
+      Alert.alert('Erro', 'ID do treino não encontrado');
+      return;
+    }
+    
+    setFinalizando(true);
+    
+    try {
+      // Converter para número se necessário
+      const id = typeof treinoId === 'string' ? parseInt(treinoId) : treinoId;
+      console.log('🔢 ID convertido:', id);
+      
+      // Salvar execução no histórico local
+      await treinoHistoricoService.salvarExecucao(id);
+      console.log('✅ Execução salva no histórico local');
+      
+      // Tentar enviar para API
+      try {
+        await treinoService.finalizarTreino(id);
+        console.log('✅ Treino finalizado na API');
+      } catch (apiError) {
+        console.log('⚠️ Erro ao finalizar na API, mas salvo localmente:', apiError);
+      }
+      
+      // Sucesso - resetar estado e voltar
+      setFinalizando(false);
+      
+      if (Platform.OS === 'web') {
+        window.alert('Treino Concluído! 🎉\n\nParabéns! Você completou o treino de hoje.');
+        navigation.goBack();
+      } else {
+        Alert.alert(
+          'Treino Concluído! 🎉',
+          'Parabéns! Você completou o treino de hoje.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('🔙 Voltando para tela anterior');
+                navigation.goBack();
+              }
+            }
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao finalizar treino:', error);
+      console.error('❌ Mensagem:', error.message);
+      setFinalizando(false);
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Erro: Não foi possível finalizar o treino: ${error.message}`);
+      } else {
+        Alert.alert('Erro', `Não foi possível finalizar o treino: ${error.message}`);
+      }
+    }
+  }
 
   console.log('🎯 WorkoutActiveScreen renderizando - loading:', loading, 'treino:', !!treino);
 
@@ -481,13 +545,34 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           disabled={finalizando}
           onPress={() => {
             console.log('🟢 BOTÃO FINALIZAR CLICADO!');
-            console.log('✅ Treino finalizado com sucesso!');
-            // TODO: Adicionar chamada à API quando o endpoint existir
-            // await treinoService.finalizarTreino(treinoId);
-            navigation.goBack();
+            
+            // Suporte para Web e Mobile
+            if (Platform.OS === 'web') {
+              const confirmar = window.confirm('Deseja realmente finalizar seu treino?');
+              if (confirmar) {
+                handleFinalizarTreino();
+              }
+            } else {
+              Alert.alert(
+                'Finalizar Treino',
+                'Deseja realmente finalizar seu treino?',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel'
+                  },
+                  {
+                    text: 'Finalizar',
+                    onPress: handleFinalizarTreino
+                  }
+                ]
+              );
+            }
           }}>
           <MaterialIcons name="flag" size={24} color="#102216" />
-          <Text style={styles.finishButtonText}>Finalizar Treino</Text>
+          <Text style={styles.finishButtonText}>
+            {finalizando ? 'Finalizando...' : 'Finalizar Treino'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

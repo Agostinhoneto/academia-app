@@ -19,6 +19,10 @@ export interface Treino {
     nome: string;
   };
   exercicios?: ExercicioTreino[];
+  // Campos de status locais (não vem da API)
+  feitoHoje?: boolean;
+  ehTreinoDoDia?: boolean;
+  ultimaExecucao?: string;
 }
 
 export interface ExercicioTreino {
