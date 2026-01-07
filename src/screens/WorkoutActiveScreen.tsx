@@ -176,9 +176,12 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
     });
   };
 
-  const completedCount = 3;
-  const totalExercises = 8;
-  const progress = (completedCount / totalExercises) * 100;
+  // Calcular progresso dinamicamente
+  const completedCount = exercises.filter(ex => 
+    ex.sets_data.every(set => set.completed)
+  ).length;
+  const totalExercises = exercises.length;
+  const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
 
   console.log('🎯 WorkoutActiveScreen renderizando - loading:', loading, 'treino:', !!treino);
 
