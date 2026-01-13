@@ -5,8 +5,26 @@
 // 🎯 ALTERE AQUI PARA TROCAR ENTRE LOCAL E PRODUÇÃO
 const USE_PRODUCTION = false; // true = Produção ☁️ | false = Local 💻
 
+// 💡 WORKFLOW RECOMENDADO:
+//    1. Desenvolva e teste localmente (false) com Docker + XAMPP
+//    2. Quando funcionar, mude para produção (true) 
+//    3. Teste em produção antes de fazer build
+//    4. Se der problema, volte para local (false) e corrija
+
+// ⚠️ IMPORTANTE - DEPENDÊNCIAS:
+// 
+// 💻 LOCAL - Precisa:
+//    ✅ Docker rodando (banco de dados)
+//    ✅ XAMPP/WAMP rodando (Laravel)
+//    ✅ Mesma rede WiFi (para celular físico)
+//
+// ☁️ PRODUÇÃO - Precisa:
+//    ✅ Apenas internet
+//    ✅ Funciona de qualquer lugar
+//    ✅ Não depende de Docker/XAMPP
+
 // 📱 CONFIGURAÇÃO PARA DESENVOLVIMENTO LOCAL
-// ⚠️ IMPORTANTE: Escolha a URL correta baseado em onde está testando!
+// ⚠️ Escolha a URL correta baseado em onde está testando!
 
 const LOCAL_URLS = {
   // 💻 Emulador/Simulador (mesma máquina)
