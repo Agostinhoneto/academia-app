@@ -2,14 +2,15 @@
 // 🔧 CONFIGURAÇÃO DE AMBIENTES
 // ==============================
 
-// 🎯 ALTERE AQUI PARA TROCAR ENTRE LOCAL E PRODUÇÃO
-const USE_PRODUCTION = false; // true = Produção ☁️ | false = Local 💻
+// 🎯 ESCOLHA O PERFIL AQUI:
+type Environment = 'local-web' | 'local-mobile' | 'production';
 
-// 💡 WORKFLOW RECOMENDADO:
-//    1. Desenvolva e teste localmente (false) com Docker + XAMPP
-//    2. Quando funcionar, mude para produção (true) 
-//    3. Teste em produção antes de fazer build
-//    4. Se der problema, volte para local (false) e corrija
+const CURRENT_ENVIRONMENT: Environment = 'production'; // 👈 ALTERE AQUI!
+
+// 📋 PERFIS DISPONÍVEIS:
+// 'local-web'      → Local no navegador (localhost/api)
+// 'local-mobile'   → Local no celular (192.168.1.222/api)  
+// 'production'     → Produção (powerfitacademy.com.br/api)
 
 // ⚠️ IMPORTANTE - DEPENDÊNCIAS:
 // 
@@ -23,30 +24,11 @@ const USE_PRODUCTION = false; // true = Produção ☁️ | false = Local 💻
 //    ✅ Funciona de qualquer lugar
 //    ✅ Não depende de Docker/XAMPP
 
-// 📱 CONFIGURAÇÃO PARA DESENVOLVIMENTO LOCAL
-// ⚠️ Escolha a URL correta baseado em onde está testando!
-
-const LOCAL_URLS = {
-  // 💻 Emulador/Simulador (mesma máquina)
-  emulator: 'http://127.0.0.1/api',
-  
-  // 📱 Celular Físico (mesma rede WiFi)
-  // ⚠️ SUBSTITUA pelo IP da sua máquina! Execute: ipconfig (Windows) ou ifconfig (Mac/Linux)
-  physical: 'http://192.168.1.222/api', // 🔴 ALTERE AQUI SEU IP!
-  
-  // 🌐 Web Browser
-  web: 'http://localhost/api',
-};
-
 // 🌐 URLs dos ambientes
-const API_URLS = {
-  production: 'https://powerfitacademy.com.br/api',
-  
-  // 🎯 ESCOLHA O LOCAL URL BASEADO NO SEU TESTE:
-  // - Usando emulador/simulador? Use LOCAL_URLS.emulator
-  // - Usando celular físico? Use LOCAL_URLS.physical (e configure o IP!)
-  // - Usando navegador web? Use LOCAL_URLS.web
-  local: LOCAL_URLS.physical, // 🔧 ALTERE AQUI!
+const ENVIRONMENT_URLS = {
+  'local-web': 'http://localhost/api',
+  'local-mobile': 'http://192.168.1.222/api',
+  'production': 'https://powerfitacademy.com.br/api',
 };
 
 // 🚀 Determinar URL base
@@ -56,8 +38,8 @@ const getBaseURL = () => {
     return process.env.REACT_APP_API_URL;
   }
   
-  // 2️⃣ Baseado na flag USE_PRODUCTION
-  return USE_PRODUCTION ? API_URLS.production : API_URLS.local;
+  // 2️⃣ Baseado no perfil selecionado
+  return ENVIRONMENT_URLS[CURRENT_ENVIRONMENT];
 };
 
 // ⚙️ Configuração exportada
@@ -72,17 +54,16 @@ export const API_CONFIG = {
 
 // 📊 Informações do ambiente atual
 export const ENVIRONMENT = {
-  name: USE_PRODUCTION ? '☁️ PRODUÇÃO' : '💻 LOCAL',
+  name: CURRENT_ENVIRONMENT,
   url: getBaseURL(),
-  isProduction: USE_PRODUCTION,
-  isDevelopment: !USE_PRODUCTION,
+  isProduction: CURRENT_ENVIRONMENT === 'production',
+  isDevelopment: CURRENT_ENVIRONMENT !== 'production',
+  profile: CURRENT_ENVIRONMENT,
 };
 
-// 🔍 Log do ambiente (apenas em desenvolvimento)
-if (!USE_PRODUCTION) {
-  console.log('🔧 Ambiente:', ENVIRONMENT.name);
-  console.log('🌐 URL:', ENVIRONMENT.url);
-}
+// 🔍 Log do ambiente (sempre mostra para facilitar debug)
+console.log('🔧 Ambiente:', CURRENT_ENVIRONMENT);
+console.log('🌐 URL:', getBaseURL());
 
 // Tipos de resposta da API
 export interface ApiResponse<T = any> {
