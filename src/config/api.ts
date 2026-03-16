@@ -1,14 +1,16 @@
 // Configuração da API
-// No iOS/Android físico, não use localhost. Use o IP da sua máquina.
-// Para desenvolvimento local, coloque o IP do seu computador aqui
+// URL de produção do servidor
+const PRODUCTION_URL = 'https://powerfitacademy.com.br/api';
+
+// Para desenvolvimento local, descomente e coloque o IP da sua máquina:
+// const DEV_URL = 'http://192.168.1.222/api';
+
 const getBaseURL = () => {
-  // Se estiver rodando na web, usa localhost
-  if (typeof window !== 'undefined' && window.location) {
-    return 'http://localhost/api';
-  }
+  // Usar sempre a URL de produção
+  return PRODUCTION_URL;
   
-  // No iOS/Android, use o IP da sua máquina
-  return 'http://192.168.1.222/api';
+  // Para desenvolvimento local, descomente a linha abaixo:
+  // return DEV_URL;
 };
 
 export const API_CONFIG = {
