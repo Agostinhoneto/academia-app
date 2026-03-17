@@ -1,15 +1,22 @@
 import React, {useState, useEffect} from 'react';
-import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl} from 'react-native';
+import {View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {treinoService, Treino} from '../services/treino';
+import {treinoHistoricoService} from '../services/treinoHistorico';
 
 export default function WorkoutsScreen({navigation}: any) {
   const [treinos, setTreinos] = useState<Treino[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('Todos');
+  const [stats, setStats] = useState({
+    totalDisponiveis: 0,
+    totalCompletos: 0,
+    sequenciaAtual: 0,
+    tempoTotal: 0,
+  });
 
   useEffect(() => {
     loadTreinos();
@@ -19,7 +26,63 @@ export default function WorkoutsScreen({navigation}: any) {
     try {
       setLoading(true);
       const data = await treinoService.getTreinos();
-      setTreinos(data);
+      
+      // Enriquecer treinos com informações de status
+      const treinosComStatus = await Promise.all(
+        data.map(async (treino) => {
+          const feitoHoje = await treinoHistoricoService.foiFeitoHoje(treino.id);
+          const ultimaExec = await treinoHistoricoService.getUltimaExecucao(treino.id);
+          
+          return {
+            ...treino,
+            feitoHoje,
+            ehTreinoDoDia: false, // Será definido depois
+            ultimaExecucao: ultimaExec?.dataHora,
+          };
+        })
+      );
+      
+      // Determinar qual é o treino do dia considerando os já feitos
+      const treinoDoDiaId = await treinoHistoricoService.getProximoTreinoDisponivel(treinosComStatus);
+      
+      // Atualizar flag ehTreinoDoDia
+      const treinosFinais = treinosComStatus.map(treino => ({
+        ...treino,
+        ehTreinoDoDia: treino.id === treinoDoDiaId && !treino.feitoHoje,
+      }));
+      
+      setTreinos(treinosFinais);
+      
+      // Calcular estatísticas
+      const totalDisponiveis = treinosFinais.length;
+      
+      // Contar quantas DIVISÕES foram completadas hoje (não treinos completos)
+      const historico = await treinoHistoricoService.getHistorico();
+      const hoje = treinoHistoricoService.getDataAtual();
+      const divisoesHoje = historico.filter(exec => {
+        const dataExec = treinoHistoricoService.getDataFromISO(exec.dataHora);
+        return dataExec === hoje && exec.concluido;
+      });
+      const totalCompletos = divisoesHoje.length;
+      
+      // Calcular sequência (dias consecutivos treinando)
+      const sequenciaAtual = await treinoHistoricoService.getSequenciaConsecutiva();
+      
+      // Calcular tempo total de treinos (em minutos)
+      const tempoTotal = await treinoHistoricoService.getTempoTotalTreinos();
+      
+      setStats({
+        totalDisponiveis,
+        totalCompletos,
+        sequenciaAtual,
+        tempoTotal,
+      });
+      
+      // Verificar se todos foram feitos hoje
+      const todosFeitosHoje = treinosFinais.every(t => t.feitoHoje);
+      if (todosFeitosHoje && treinosFinais.length > 0) {
+        console.log('🎉 Todos os treinos foram completados hoje!');
+      }
     } catch (error) {
       console.error('Erro ao carregar treinos:', error);
     } finally {
@@ -31,6 +94,41 @@ export default function WorkoutsScreen({navigation}: any) {
     setRefreshing(true);
     await loadTreinos();
     setRefreshing(false);
+  }
+
+  async function handleIniciarTreino(treino: Treino) {
+    // Verificar se já foi feito hoje
+    if (treino.feitoHoje) {
+      Alert.alert(
+        'Treino já realizado',
+        'Você já completou este treino hoje. Tente novamente amanhã!',
+        [{text: 'OK'}]
+      );
+      return;
+    }
+
+    // Avisar se não é o treino do dia
+    if (!treino.ehTreinoDoDia) {
+      const mensagem = treino.dia_semana?.nome 
+        ? `Este treino está programado para ${treino.dia_semana.nome}. Deseja fazer mesmo assim?`
+        : 'Este não é o treino sugerido para hoje. Deseja continuar mesmo assim?';
+        
+      Alert.alert(
+        'Atenção',
+        mensagem,
+        [
+          {text: 'Cancelar', style: 'cancel'},
+          {
+            text: 'Continuar',
+            onPress: () => navigation.navigate('WorkoutActive', {treinoId: treino.id})
+          }
+        ]
+      );
+      return;
+    }
+
+    // Tudo certo, pode iniciar
+    navigation.navigate('WorkoutActive', {treinoId: treino.id});
   }
 
   const categories = ['Todos', ...new Set(treinos.map(t => t.tipo).filter(Boolean))];
@@ -70,6 +168,33 @@ export default function WorkoutsScreen({navigation}: any) {
           </View>
         ) : (
           <>
+            {/* Stats Card */}
+            <View style={styles.statsCard}>
+              <Text style={styles.statsTitle}>Resumo do Dia</Text>
+              <View style={styles.statsGrid}>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="fitness-center" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalDisponiveis}</Text>
+                  <Text style={styles.statLabel}>Treinos{"\n"}Disponíveis</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="check-circle" size={24} color="#13ec5b" />
+                  <Text style={styles.statValue}>{stats.totalCompletos}</Text>
+                  <Text style={styles.statLabel}>Completos{"\n"}Hoje</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="local-fire-department" size={24} color="#ff6b35" />
+                  <Text style={styles.statValue}>{stats.sequenciaAtual}</Text>
+                  <Text style={styles.statLabel}>Dias{"\n"}Seguidos</Text>
+                </View>
+                <View style={styles.statItem}>
+                  <MaterialIcons name="schedule" size={24} color="#4a90e2" />
+                  <Text style={styles.statValue}>{Math.floor(stats.tempoTotal / 60)}h</Text>
+                  <Text style={styles.statLabel}>Tempo{"\n"}Total</Text>
+                </View>
+              </View>
+            </View>
+            
             {/* Category Filters */}
             {categories.length > 1 && (
               <ScrollView 
@@ -99,25 +224,62 @@ export default function WorkoutsScreen({navigation}: any) {
 
             {/* Workouts List */}
             <View style={styles.workoutsList}>
-              {filteredWorkouts.map((treino) => (
-                <TouchableOpacity 
-                  key={treino.id} 
-                  style={styles.workoutCard}
-                  onPress={() => navigation.navigate('WorkoutActive', {treinoId: treino.id})}
-                  activeOpacity={0.7}>
-                  <View style={styles.workoutCardContent}>
-                    <View style={[styles.workoutIcon, {backgroundColor: 'rgba(19,236,91,0.1)'}]}>
-                      <MaterialIcons name="fitness-center" size={28} color="#13ec5b" />
-                    </View>
+              {filteredWorkouts.map((treino) => {
+                const podeIniciar = !treino.feitoHoje;
+                
+                return (
+                  <TouchableOpacity 
+                    key={treino.id} 
+                    style={[
+                      styles.workoutCard,
+                      treino.ehTreinoDoDia && styles.workoutCardDestaque,
+                      treino.feitoHoje && styles.workoutCardCompleto,
+                    ]}
+                    onPress={() => handleIniciarTreino(treino)}
+                    activeOpacity={0.7}
+                    disabled={treino.feitoHoje}>
                     
-                    <View style={styles.workoutInfo}>
-                      <Text style={styles.workoutName}>{treino.nome}</Text>
-                      {treino.descricao && (
-                        <Text style={styles.workoutDescription} numberOfLines={2}>
-                          {treino.descricao}
+                    {/* Badge de destaque para treino do dia */}
+                    {treino.ehTreinoDoDia && !treino.feitoHoje && (
+                      <View style={styles.badgeDestaque}>
+                        <MaterialIcons name="star" size={12} color="#fff" />
+                        <Text style={styles.badgeDestaqueText}>TREINO DE HOJE</Text>
+                      </View>
+                    )}
+                    
+                    {/* Badge de completo */}
+                    {treino.feitoHoje && (
+                      <View style={styles.badgeCompleto}>
+                        <MaterialIcons name="check-circle" size={16} color="#13ec5b" />
+                        <Text style={styles.badgeCompletoText}>CONCLUÍDO HOJE</Text>
+                      </View>
+                    )}
+                    
+                    <View style={styles.workoutCardContent}>
+                      <View style={[
+                        styles.workoutIcon, 
+                        {backgroundColor: treino.feitoHoje ? 'rgba(102,102,102,0.1)' : 'rgba(19,236,91,0.1)'}
+                      ]}>
+                        <MaterialIcons 
+                          name={treino.feitoHoje ? "check-circle" : "fitness-center"} 
+                          size={28} 
+                          color={treino.feitoHoje ? "#666" : "#13ec5b"} 
+                        />
+                      </View>
+                      
+                      <View style={styles.workoutInfo}>
+                        <Text style={[
+                          styles.workoutName,
+                          treino.feitoHoje && styles.workoutNameCompleto
+                        ]}>
+                          {treino.nome}
                         </Text>
-                      )}
-                      <View style={styles.workoutMeta}>
+                        {treino.descricao && (
+                          <Text style={styles.workoutDescription} numberOfLines={2}>
+                            {treino.descricao}
+                          </Text>
+                        )}
+                        <View style={styles.workoutMeta}>
                         {treino.dia_semana && (
                           <View style={styles.metaItem}>
                             <MaterialIcons name="event" size={16} color="#666" />
@@ -151,10 +313,15 @@ export default function WorkoutsScreen({navigation}: any) {
                       </View>
                     </View>
 
-                    <MaterialIcons name="chevron-right" size={24} color="#666" />
+                    <MaterialIcons 
+                      name={treino.feitoHoje ? "lock" : "chevron-right"} 
+                      size={24} 
+                      color={treino.feitoHoje ? "#666" : "#13ec5b"} 
+                    />
                   </View>
                 </TouchableOpacity>
-              ))}
+              );
+              })}
             </View>
           </>
         )}
@@ -165,6 +332,9 @@ export default function WorkoutsScreen({navigation}: any) {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#102216',
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -195,9 +365,6 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
   },
-    flex: 1,
-    backgroundColor: '#102216',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -224,6 +391,9 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    paddingBottom: 80,
+  },
   scrollCDescription: {
     fontSize: 13,
     color: '#92c9a4',
@@ -231,6 +401,42 @@ const styles = StyleSheet.create({
   },
   workoutontent: {
     paddingBottom: 100,
+  },
+  statsCard: {
+    backgroundColor: '#1a1f1e',
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#2a2f2e',
+  },
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#888',
+    marginTop: 2,
+    textAlign: 'center',
   },
   categoriesScroll: {
     marginVertical: 16,
@@ -269,6 +475,60 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.05)',
+    position: 'relative',
+  },
+  workoutCardDestaque: {
+    borderWidth: 2,
+    borderColor: '#13ec5b',
+    shadowColor: '#13ec5b',
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  workoutCardCompleto: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(26,51,34,0.5)',
+  },
+  badgeDestaque: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#13ec5b',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  badgeDestaqueText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#102216',
+    letterSpacing: 0.5,
+  },
+  badgeCompleto: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(19,236,91,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#13ec5b',
+    zIndex: 10,
+  },
+  badgeCompletoText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#13ec5b',
+    letterSpacing: 0.5,
   },
   workoutCardContent: {
     flexDirection: 'row',
@@ -290,6 +550,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  workoutNameCompleto: {
+    color: '#666',
+    textDecorationLine: 'line-through',
+  },
+  workoutDescription: {
+    fontSize: 13,
+    color: '#92c9a4',
+    lineHeight: 18,
   },
   workoutMeta: {
     flexDirection: 'row',

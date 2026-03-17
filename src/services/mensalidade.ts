@@ -30,7 +30,7 @@ export const mensalidadeService = {
   // Listar todas as mensalidades do aluno logado
   async getMensalidades(): Promise<Mensalidade[]> {
     const response = await api.get<ApiResponse<Mensalidade[]>>(
-      '/api/mobile/mensalidades'
+      '/mobile/mensalidades'
     );
     
     if (response.data.success && response.data.data) {
@@ -44,7 +44,7 @@ export const mensalidadeService = {
   async getProximaMensalidade(): Promise<ProximaMensalidade | null> {
     try {
       const response = await api.get<ApiResponse<ProximaMensalidade>>(
-        '/api/mobile/mensalidades/proxima'
+        '/mobile/mensalidades/proxima'
       );
       
       if (response.data.success && response.data.data) {

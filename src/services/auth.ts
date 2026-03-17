@@ -88,16 +88,15 @@ export const authService = {
     }
   },
 
-  // Renovar token
-  async refreshToken(): Promise<LoginResponse> {
-    const response = await api.post<ApiResponse<LoginResponse>>('/auth/refresh');
+  // Verificar autenticação (me)
+  async me(): Promise<any> {
+    const response = await api.get<ApiResponse>('/auth/me');
     
-    if (response.data.success && response.data.access_token) {
-      await tokenManager.setToken(response.data.access_token);
-      return response.data;
+    if (response.data.success) {
+      return response.data.data;
     }
     
-    throw new Error('Erro ao renovar token');
+    throw new Error('Erro ao verificar autenticação');
   },
 
   // Obter usuário autenticado

@@ -49,7 +49,7 @@ export const notificacaoService = {
 
   // Marcar notificação como lida
   async markAsRead(id: number): Promise<void> {
-    await api.put(`/mobile/notifications/${id}/read`);
+    await api.post(`/mobile/notifications/${id}/read`);
   },
 
   // Marcar todas como lidas

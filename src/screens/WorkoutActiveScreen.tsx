@@ -9,10 +9,12 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {MaterialIcons} from '@expo/vector-icons';
 import {treinoService, Treino, ExercicioTreino} from '../services/treino';
+import {treinoHistoricoService} from '../services/treinoHistorico';
 import {getExerciseImage} from '../utils/exerciseImages';
 
 interface Set {
@@ -32,6 +34,7 @@ interface Exercise {
   observacoes?: string;
   sets_data: Set[];
   isActive?: boolean;
+  divisao?: string; // A, B, C, etc
 }
 
 export default function WorkoutActiveScreen({navigation, route}: any) {
@@ -42,6 +45,7 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
   const [timer, setTimer] = useState(0);
   const [activeTab, setActiveTab] = useState<'pending' | 'completed'>('pending');
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [divisaoAtual, setDivisaoAtual] = useState<string>('A'); // Começa pela divisão A
 
   useEffect(() => {
     console.log('🔵 WorkoutActiveScreen montado. treinoId:', treinoId);
@@ -69,9 +73,15 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           // Usar imagem_url ou imagem_complete da API (já vem com URL completa)
           let imageUrl = ex.imagem_url || ex.imagem_complete;
           
-          // Substituir localhost pelo IP correto no iOS/Android
+          // Substituir localhost pelo IP/URL correto em todas as plataformas
           if (imageUrl && imageUrl.includes('localhost')) {
-            imageUrl = imageUrl.replace('localhost', '192.168.1.222');
+            if (Platform.OS === 'web') {
+              // No Web, pode usar localhost ou trocar pelo IP se preferir
+              imageUrl = imageUrl.replace('localhost', 'localhost');
+            } else {
+              // iOS/Android precisa do IP da máquina
+              imageUrl = imageUrl.replace('localhost', '192.168.1.222');
+            }
           }
           
           // Se não vier imagem da API, tenta pegar do mapeamento local
@@ -85,6 +95,7 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           const series = ex.series || ex.pivot?.series || 3;
           const repeticoes = ex.repeticoes?.toString() || ex.pivot?.repeticoes?.toString() || '10';
           const carga = ex.carga?.toString() || ex.pivot?.carga?.toString() || '0';
+          const divisao = ex.divisao || 'A'; // Default para A se não tiver
           
           return {
             id: ex.id,
@@ -94,6 +105,7 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
             carga: carga + 'kg',
             image: imageUrl,
             observacoes: ex.descricao,
+            divisao: divisao,
             sets_data: Array.from({length: series}, (_, i) => ({
               number: i + 1,
               weight: carga,
@@ -103,8 +115,44 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
             isActive: index === 0,
           };
         });
+        
+        // Ordenar exercícios por divisão (A, B, C...)
+        mappedExercises.sort((a, b) => {
+          const divisaoA = a.divisao || 'A';
+          const divisaoB = b.divisao || 'A';
+          return divisaoA.localeCompare(divisaoB);
+        });
+        
         setExercises(mappedExercises);
-        console.log('✅ Exercícios mapeados:', mappedExercises.length);
+        console.log('✅ Exercícios mapeados e ordenados por divisão:', mappedExercises.length);
+        
+        // Log das divisões encontradas
+        const divisoes = [...new Set(mappedExercises.map(e => e.divisao))];
+        console.log('📊 Divisões encontradas:', divisoes.join(', '));
+        
+        // 🎯 DETECTAR QUAL DIVISÃO CARREGAR
+        const divisoesDisponiveis = divisoes.filter(Boolean).sort() as string[];
+        
+        if (divisoesDisponiveis.length > 0) {
+          const proximaDivisao = await treinoHistoricoService.getProximaDivisao(
+            treinoId,
+            divisoesDisponiveis
+          );
+          
+          if (proximaDivisao) {
+            console.log(`🎯 Carregando divisão: ${proximaDivisao}`);
+            setDivisaoAtual(proximaDivisao);
+            
+            // Ativar primeiro exercício da divisão carregada
+            const exerciciosDaDivisao = mappedExercises.filter(e => e.divisao === proximaDivisao);
+            if (exerciciosDaDivisao.length > 0) {
+              setExercises(prev => prev.map(ex => ({
+                ...ex,
+                isActive: ex.id === exerciciosDaDivisao[0].id
+              })));
+            }
+          }
+        }
       } else {
         console.log('⚠️ Nenhum exercício encontrado no treino');
       }
@@ -176,9 +224,85 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
     });
   };
 
-  const completedCount = 3;
-  const totalExercises = 8;
-  const progress = (completedCount / totalExercises) * 100;
+  // Calcular progresso dinamicamente
+  const exerciciosDaDivisaoAtual = exercises.filter(ex => ex.divisao === divisaoAtual);
+  const completedCount = exerciciosDaDivisaoAtual.filter(ex => 
+    ex.sets_data.every(set => set.completed)
+  ).length;
+  const totalExercises = exerciciosDaDivisaoAtual.length;
+  const progress = totalExercises > 0 ? (completedCount / totalExercises) * 100 : 0;
+  
+  // Verificar se todos os exercícios da divisão atual foram completados
+  const divisaoCompletada = totalExercises > 0 && completedCount === totalExercises;
+  
+  // Listar divisões disponíveis
+  const divisoesDisponiveis = [...new Set(exercises.map(e => e.divisao).filter(Boolean))].sort();
+  const indexDivisaoAtual = divisoesDisponiveis.indexOf(divisaoAtual);
+  const proximaDivisao = indexDivisaoAtual < divisoesDisponiveis.length - 1 
+    ? divisoesDisponiveis[indexDivisaoAtual + 1] 
+    : null;
+
+  async function handleFinalizarTreino() {
+    console.log('✅ Confirmado - iniciando finalização da divisão:', divisaoAtual);
+    console.log('🔍 TreinoId:', treinoId, 'Tipo:', typeof treinoId);
+    
+    if (!treinoId) {
+      Alert.alert('Erro', 'ID do treino não encontrado');
+      return;
+    }
+    
+    setFinalizando(true);
+    
+    try {
+      // Converter para número se necessário
+      const id = typeof treinoId === 'string' ? parseInt(treinoId) : treinoId;
+      console.log('🔢 ID convertido:', id);
+      
+      // Salvar execução da divisão atual no histórico local
+      await treinoHistoricoService.salvarExecucao(id, divisaoAtual);
+      console.log(`✅ Divisão ${divisaoAtual} salva no histórico local`);
+      
+      // Tentar enviar para API
+      try {
+        await treinoService.finalizarTreino(id);
+        console.log('✅ Treino finalizado na API');
+      } catch (apiError) {
+        console.log('⚠️ Erro ao finalizar na API, mas salvo localmente:', apiError);
+      }
+      
+      // Sucesso - resetar estado e voltar
+      setFinalizando(false);
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Divisão ${divisaoAtual} Concluída! 🎉\n\nParabéns! Continue assim.`);
+        navigation.goBack();
+      } else {
+        Alert.alert(
+          `Divisão ${divisaoAtual} Concluída! 🎉`,
+          'Parabéns! Continue assim.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('🔙 Voltando para tela anterior');
+                navigation.goBack();
+              }
+            }
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao finalizar treino:', error);
+      console.error('❌ Mensagem:', error.message);
+      setFinalizando(false);
+      
+      if (Platform.OS === 'web') {
+        window.alert(`Erro: Não foi possível finalizar o treino: ${error.message}`);
+      } else {
+        Alert.alert('Erro', `Não foi possível finalizar o treino: ${error.message}`);
+      }
+    }
+  }
 
   console.log('🎯 WorkoutActiveScreen renderizando - loading:', loading, 'treino:', !!treino);
 
@@ -237,6 +361,35 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
             {treino.descricao && (
               <Text style={styles.workoutDescription}>{treino.descricao}</Text>
             )}
+            
+            {/* Indicador de Divisão Atual */}
+            {divisoesDisponiveis.length > 1 && (
+              <View style={styles.divisaoIndicator}>
+                <Text style={styles.divisaoLabel}>Divisão Atual:</Text>
+                <View style={styles.divisoesContainer}>
+                  {divisoesDisponiveis.map((div) => (
+                    <View 
+                      key={div}
+                      style={[
+                        styles.divisaoChip,
+                        div === divisaoAtual && styles.divisaoChipActive,
+                        divisoesDisponiveis.indexOf(div) > indexDivisaoAtual && styles.divisaoChipLocked
+                      ]}
+                    >
+                      <Text style={[
+                        styles.divisaoChipText,
+                        div === divisaoAtual && styles.divisaoChipTextActive
+                      ]}>
+                        {div}
+                      </Text>
+                      {divisoesDisponiveis.indexOf(div) > indexDivisaoAtual && (
+                        <MaterialIcons name="lock" size={12} color="#666" />
+                      )}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Progress Bar */}
             <View style={styles.progressContainer}>
@@ -248,14 +401,40 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
                 <View style={[styles.progressBarFill, {width: `${progress}%`}]} />
               </View>
               <Text style={styles.progressText}>
-                {completedCount} de {totalExercises} Exercícios Completos
+                {completedCount} de {totalExercises} Exercícios Completos (Divisão {divisaoAtual})
               </Text>
             </View>
+            
+            {/* Botão para próxima divisão */}
+            {divisaoCompletada && proximaDivisao && (
+              <TouchableOpacity 
+                style={styles.proximaDivisaoButton}
+                onPress={() => {
+                  console.log(`🔄 Avançando para divisão ${proximaDivisao}`);
+                  setDivisaoAtual(proximaDivisao);
+                  // Ativar o primeiro exercício da próxima divisão
+                  const proximosExercicios = exercises.filter(e => e.divisao === proximaDivisao);
+                  if (proximosExercicios.length > 0) {
+                    setExercises(prev => prev.map(ex => ({
+                      ...ex,
+                      isActive: ex.id === proximosExercicios[0].id
+                    })));
+                  }
+                }}
+              >
+                <MaterialIcons name="arrow-forward" size={20} color="#102216" />
+                <Text style={styles.proximaDivisaoButtonText}>
+                  Avançar para Divisão {proximaDivisao}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Exercise List */}
+          {/* Exercise List - Filtrado por divisão */}
           <View style={styles.exerciseList}>
-          {exercises.map((exercise, idx) => {
+          {exercises
+            .filter(exercise => exercise.divisao === divisaoAtual)
+            .map((exercise, idx) => {
             const isCompleted = exercise.sets_data.every(s => s.completed);
             console.log(`🏋️ Renderizando exercício ${idx + 1}/${exercises.length}: ${exercise.name} - Ativo: ${exercise.isActive}, Completo: ${isCompleted}`);
             
@@ -472,19 +651,44 @@ export default function WorkoutActiveScreen({navigation, route}: any) {
           <Text style={styles.cancelButtonText}>Cancelar</Text>
         </TouchableOpacity>
         
+        {/* Botão Finalizar - sempre visível, salva divisão atual e volta */}
         <TouchableOpacity 
-          style={[styles.finishButton, finalizando && styles.finishButtonDisabled]}
+          style={[
+            styles.finishButton,
+            (!divisaoCompletada || finalizando) && styles.finishButtonDisabled
+          ]}
           activeOpacity={0.7}
-          disabled={finalizando}
+          disabled={!divisaoCompletada || finalizando}
           onPress={() => {
             console.log('🟢 BOTÃO FINALIZAR CLICADO!');
-            console.log('✅ Treino finalizado com sucesso!');
-            // TODO: Adicionar chamada à API quando o endpoint existir
-            // await treinoService.finalizarTreino(treinoId);
-            navigation.goBack();
+            
+            // Suporte para Web e Mobile
+            if (Platform.OS === 'web') {
+              const confirmar = window.confirm(`Deseja finalizar a Divisão ${divisaoAtual}?`);
+              if (confirmar) {
+                handleFinalizarTreino();
+              }
+            } else {
+              Alert.alert(
+                `Finalizar Divisão ${divisaoAtual}`,
+                'Deseja salvar e concluir esta divisão?',
+                [
+                  {
+                    text: 'Cancelar',
+                    style: 'cancel'
+                  },
+                  {
+                    text: 'Finalizar',
+                    onPress: handleFinalizarTreino
+                  }
+                ]
+              );
+            }
           }}>
           <MaterialIcons name="flag" size={24} color="#102216" />
-          <Text style={styles.finishButtonText}>Finalizar Treino</Text>
+          <Text style={styles.finishButtonText}>
+            {finalizando ? 'Finalizando...' : divisaoCompletada ? 'Finalizar Treino' : 'Complete todos os exercícios'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -655,6 +859,67 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#92c9a4',
     textAlign: 'right',
+  },
+  divisaoIndicator: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  divisaoLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  divisoesContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  divisaoChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  divisaoChipActive: {
+    backgroundColor: '#13ec5b',
+    borderColor: '#13ec5b',
+  },
+  divisaoChipLocked: {
+    opacity: 0.5,
+  },
+  divisaoChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92c9a4',
+  },
+  divisaoChipTextActive: {
+    color: '#102216',
+  },
+  proximaDivisaoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#13ec5b',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: '#13ec5b',
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  proximaDivisaoButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#102216',
   },
   segmentedControl: {
     paddingHorizontal: 20,

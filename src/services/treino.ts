@@ -19,6 +19,10 @@ export interface Treino {
     nome: string;
   };
   exercicios?: ExercicioTreino[];
+  // Campos de status locais (não vem da API)
+  feitoHoje?: boolean;
+  ehTreinoDoDia?: boolean;
+  ultimaExecucao?: string;
 }
 
 export interface ExercicioTreino {
@@ -29,6 +33,14 @@ export interface ExercicioTreino {
   video_url?: string;
   imagem?: string;
   tipo?: string;
+  divisao?: string; // A, B, C, etc
+  series?: number;
+  repeticoes?: number;
+  carga?: number;
+  grupo_muscular?: {
+    id: number;
+    nome: string;
+  };
   pivot?: {
     treino_id: number;
     exercicio_id: number;
