@@ -43,10 +43,16 @@ export interface RegisterData {
 export const authService = {
   // Login de aluno
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await api.post<LoginResponse>(
-      '/aluno/login',
-      credentials
-    );
+    let response;
+    try {
+      response = await api.post<LoginResponse>('/aluno/login', credentials);
+    } catch (err: any) {
+      console.log('🔴 Erro na requisição de login:');
+      console.log('   Status:', err?.response?.status);
+      console.log('   Data:', JSON.stringify(err?.response?.data));
+      console.log('   Message:', err?.message);
+      throw err;
+    }
     
     console.log('📥 Resposta do login:', response.data);
     
